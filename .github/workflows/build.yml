@@ -168,17 +168,35 @@ jobs:
           if [[ -f "$BINARY" ]]; then
             echo "Found executable: $BINARY"
             
-            # If this is a tag build
-            if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-              TAG="${{ github.ref_name }}"
-            else
-              # This is a push to main, use version from tauri.conf.json with v prefix
-              VERSION=$(grep -o '"version": *"[^"]*"' ./src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
-              TAG="v$VERSION"
-            fi
+            # Find the most recent draft release (should be the one just created by tauri-action)
+            echo "Looking for the most recent draft release..."
+            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
             
-            # Upload to the release
-            gh release upload "$TAG" "$BINARY#$DEST_NAME" --clobber || echo "Failed to upload to release. This is expected if release doesn't exist yet."
+            if [[ -n "$RELEASE_ID" ]]; then
+              echo "Found draft release ID: $RELEASE_ID"
+              
+              # Get release info for logging purposes
+              RELEASE_INFO=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '{name: .name, tag_name: .tag_name}')
+              echo "Release info: $RELEASE_INFO"
+              
+              # Upload directly using the GitHub API
+              echo "Uploading $DEST_NAME to release $RELEASE_ID..."
+              UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '.upload_url' | sed 's/{?name,label}//')
+              
+              # Use curl for the upload
+              curl -X POST \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                -H "Accept: application/vnd.github.v3+json" \
+                --data-binary @"$BINARY" \
+                "${UPLOAD_URL}?name=${DEST_NAME}"
+              
+              echo "Upload completed"
+            else
+              echo "No draft releases found. This is unexpected as tauri-action should have created one."
+              echo "Available releases:"
+              gh api repos/${{ github.repository }}/releases | jq -r '.[] | {id: .id, name: .name, draft: .draft, tag_name: .tag_name}'
+            fi
           else
             echo "Binary not found at expected path: $BINARY"
           fi
