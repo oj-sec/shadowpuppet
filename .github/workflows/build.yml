@@ -1,0 +1,102 @@
+name: Build Tauri App
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+    
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      # Setup Node.js for both frontend and Tauri
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      # Build the frontend Svelte app
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+      
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+      
+      # Setup Python for server/sidecar
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      # Install Python dependencies
+      - name: Install Python dependencies
+        working-directory: ./server
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Build Python sidecar with frontend embedded
+      - name: Build Python sidecar
+        working-directory: ./server
+        run: python build.py
+        # This script should handle embedding the frontend and creating the pyinstaller binary
+      
+      # Install Rust for Tauri
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      
+      # Cache Rust dependencies
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      
+      # Install Tauri dependencies
+      - name: Install Tauri dependencies
+        working-directory: ./src-tauri
+        run: |
+          # Linux dependencies
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y libwebkit2gtk-4.0-dev \
+              build-essential \
+              curl \
+              wget \
+              libssl-dev \
+              libgtk-3-dev \
+              libayatana-appindicator3-dev \
+              librsvg2-dev
+          fi
+        shell: bash
+      
+      # Install Tauri CLI dependencies
+      - name: Install Tauri CLI
+        working-directory: ./
+        run: npm install -g @tauri-apps/cli
+      
+      # Build Tauri app with sidecar integration
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
