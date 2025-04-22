@@ -140,66 +140,46 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: ./src-tauri
+          args: --target x86_64-unknown-linux-gnu,x86_64-apple-darwin,x86_64-pc-windows-msvc
           tagName: ${{ github.ref_name }}
           releaseName: 'App v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
-      
-      # Upload standalone executables
-      - name: Upload standalone executables
-        if: startsWith(github.ref, 'refs/tags/')
+          
+      # Add standalone executables to release
+      - name: Add standalone executables to release
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Hardcoded app name
           APP_NAME="shadowpuppet"
           
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Find and upload Windows executable
-            WINDOWS_EXE="./src-tauri/target/release/${APP_NAME}.exe"
-            if [[ -f "$WINDOWS_EXE" ]]; then
-              echo "Found Windows executable: $WINDOWS_EXE"
-              # Upload the executable to the release with a descriptive name
-              gh release upload ${{ github.ref_name }} "$WINDOWS_EXE#${APP_NAME}-standalone.exe" --clobber
-            else
-              echo "No Windows executable found at expected path: $WINDOWS_EXE"
-              # Try a broader search as fallback
-              WINDOWS_EXE=$(find ./src-tauri/target/release -name "*.exe" -not -path "*installer*" -not -path "*/deps/*" | head -1)
-              if [[ -n "$WINDOWS_EXE" ]]; then
-                echo "Found Windows executable via fallback: $WINDOWS_EXE"
-                gh release upload ${{ github.ref_name }} "$WINDOWS_EXE#${APP_NAME}-standalone.exe" --clobber
-              else 
-                echo "No Windows executable found."
-              fi
-            fi
+            BINARY="./src-tauri/target/release/app.exe"
+            DEST_NAME="${APP_NAME}-standalone.exe"
           elif [[ "${{ runner.os }}" == "Linux" ]]; then
-            # Find and upload Linux executable
-            LINUX_BIN="./src-tauri/target/release/$APP_NAME"
-            if [[ -f "$LINUX_BIN" ]]; then
-              echo "Found Linux executable: $LINUX_BIN"
-              # Upload the executable to the release with a descriptive name
-              gh release upload ${{ github.ref_name }} "$LINUX_BIN#${APP_NAME}-standalone-linux" --clobber
-            else
-              echo "No Linux executable found at expected path: $LINUX_BIN"
-              # Try a broader search as fallback
-              LINUX_BIN=$(find ./src-tauri/target/release -type f -executable -not -path "*bundle*" -not -path "*.deb" -not -path "*/deps/*" -not -path "*/build/*" | head -1)
-              if [[ -n "$LINUX_BIN" ]]; then
-                echo "Found Linux executable via fallback: $LINUX_BIN"
-                gh release upload ${{ github.ref_name }} "$LINUX_BIN#${APP_NAME}-standalone-linux" --clobber
-              else
-                echo "No Linux executable found."
-              fi
-            fi
+            BINARY="./src-tauri/target/release/app"
+            DEST_NAME="${APP_NAME}-standalone-linux"
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            # For macOS, extract the binary from inside the .app bundle
-            MAC_BIN="./src-tauri/target/release/bundle/macos/${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
-            if [[ -f "$MAC_BIN" ]]; then
-              echo "Found macOS executable inside .app: $MAC_BIN"
-              # Upload the raw binary as well as the .app
-              gh release upload ${{ github.ref_name }} "$MAC_BIN#${APP_NAME}-standalone-macos" --clobber
-            else
-              echo "No macOS executable found at expected path: $MAC_BIN"
-            fi
+            BINARY="./src-tauri/target/release/app"
+            DEST_NAME="${APP_NAME}-standalone-macos"
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+          
+          if [[ -f "$BINARY" ]]; then
+            echo "Found executable: $BINARY"
+            
+            # If this is a tag build
+            if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+              TAG="${{ github.ref_name }}"
+            else
+              # This is a push to main, use version from tauri.conf.json with v prefix
+              VERSION=$(grep -o '"version": *"[^"]*"' ./src-tauri/tauri.conf.json | head -1 | cut -d'"' -f4)
+              TAG="v$VERSION"
+            fi
+            
+            # Upload to the release
+            gh release upload "$TAG" "$BINARY#$DEST_NAME" --clobber || echo "Failed to upload to release. This is expected if release doesn't exist yet."
+          else
+            echo "Binary not found at expected path: $BINARY"
+          fi
