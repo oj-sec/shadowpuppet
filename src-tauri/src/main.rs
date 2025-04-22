@@ -163,7 +163,7 @@ async fn close_loading_and_show_main(app_handle: tauri::AppHandle) {
         let _ = loading_window.close();
     }
     
-    if let Some(mut main_window) = app_handle.get_webview_window("main") {
+    if let Some(main_window) = app_handle.get_webview_window("main") {
         let url = Url::parse("http://localhost:8000").expect("Invalid URL");
         let _ = main_window.navigate(url);
 
