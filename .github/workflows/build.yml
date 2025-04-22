@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -53,7 +56,6 @@ jobs:
       - name: Build Python sidecar
         working-directory: ./server
         run: python build.py
-        # This script should handle embedding the frontend and creating the pyinstaller binary
       
       # Install Rust for Tauri
       - name: Install Rust (stable)
