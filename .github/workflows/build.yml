@@ -141,60 +141,8 @@ jobs:
         with:
           projectPath: ./src-tauri
           tagName: ${{ github.ref_name }}
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseName: 'Shadowpuppet v__VERSION__'
+          releaseBody: 'Tauri distribution formats:\n -- Windows NSIS installer\n -- macOS App bundle\n -- Linux DEB package'
           releaseDraft: true
           prerelease: false
           
-      # Add standalone executables to release (excluding macOS)
-      - name: Add standalone executables to release
-        if: github.event_name != 'pull_request' && runner.os != 'macOS'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          APP_NAME="shadowpuppet"
-          
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            BINARY="./src-tauri/target/release/app.exe"
-            DEST_NAME="${APP_NAME}-standalone.exe"
-          elif [ "${{ runner.os }}" = "Linux" ]; then
-            BINARY="./src-tauri/target/release/app"
-            DEST_NAME="${APP_NAME}-standalone-linux"
-          fi
-          
-          if [ -f "$BINARY" ]; then
-            echo "Found executable: $BINARY"
-            
-            # Find the most recent draft release (should be the one just created by tauri-action)
-            echo "Looking for the most recent draft release..."
-            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
-            
-            if [ -n "$RELEASE_ID" ]; then
-              echo "Found draft release ID: $RELEASE_ID"
-              
-              # Get release info for logging purposes
-              RELEASE_INFO=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '{name: .name, tag_name: .tag_name}')
-              echo "Release info: $RELEASE_INFO"
-              
-              # Upload directly using the GitHub API
-              echo "Uploading $DEST_NAME to release $RELEASE_ID..."
-              UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '.upload_url' | sed 's/{?name,label}//')
-              
-              # Use curl for the upload
-              curl -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Content-Type: application/octet-stream" \
-                -H "Accept: application/vnd.github.v3+json" \
-                --data-binary @"$BINARY" \
-                "${UPLOAD_URL}?name=${DEST_NAME}"
-              
-              echo "Upload completed"
-            else
-              echo "No draft releases found. This is unexpected as tauri-action should have created one."
-              echo "Available releases:"
-              gh api repos/${{ github.repository }}/releases | jq -r '.[] | {id: .id, name: .name, draft: .draft, tag_name: .tag_name}'
-            fi
-          else
-            echo "Binary not found at expected path: $BINARY"
-          fi
