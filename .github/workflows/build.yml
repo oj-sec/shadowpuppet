@@ -146,33 +146,31 @@ jobs:
           releaseDraft: true
           prerelease: false
           
-      # Add standalone executables to release
+      # Add standalone executables to release (excluding macOS)
       - name: Add standalone executables to release
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && runner.os != 'macOS'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           APP_NAME="shadowpuppet"
           
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [ "${{ runner.os }}" = "Windows" ]; then
             BINARY="./src-tauri/target/release/app.exe"
             DEST_NAME="${APP_NAME}-standalone.exe"
-          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+          elif [ "${{ runner.os }}" = "Linux" ]; then
             BINARY="./src-tauri/target/release/app"
             DEST_NAME="${APP_NAME}-standalone-linux"
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            BINARY="./src-tauri/target/release/app"
-            DEST_NAME="${APP_NAME}-standalone-macos"
           fi
           
-          if [[ -f "$BINARY" ]]; then
+          if [ -f "$BINARY" ]; then
             echo "Found executable: $BINARY"
             
             # Find the most recent draft release (should be the one just created by tauri-action)
             echo "Looking for the most recent draft release..."
             RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
             
-            if [[ -n "$RELEASE_ID" ]]; then
+            if [ -n "$RELEASE_ID" ]; then
               echo "Found draft release ID: $RELEASE_ID"
               
               # Get release info for logging purposes
