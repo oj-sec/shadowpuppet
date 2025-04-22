@@ -22,6 +22,33 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
+      # Free up disk space on Linux runners
+      - name: Free up disk space
+        if: runner.os == 'Linux'
+        run: |
+          # Show initial disk space
+          df -h
+          
+          # Remove unnecessary large packages
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          
+          # Clean apt cache thoroughly
+          sudo apt-get clean
+          sudo apt-get autoclean
+          sudo apt-get autoremove -y
+          sudo rm -rf /var/lib/apt/lists/*
+          
+          # Clear Docker images if installed
+          if command -v docker &> /dev/null; then
+            docker system prune -af
+          fi
+          
+          # Show disk space after cleanup
+          df -h
+      
       # Setup Node.js for both frontend and Tauri
       - name: Setup Node
         uses: actions/setup-node@v3
@@ -85,6 +112,22 @@ jobs:
           fi
         shell: bash
       
+      # Clean up more disk space before the final build (Linux only)
+      - name: Clean build artifacts
+        if: runner.os == 'Linux'
+        run: |
+          # Clean npm cache
+          npm cache clean --force
+          
+          # Clean pip cache
+          pip cache purge
+          
+          # Remove any large unnecessary files from previous steps
+          rm -rf ~/.cargo/registry/
+          
+          # Display disk space
+          df -h
+      
       # Install Tauri CLI dependencies
       - name: Install Tauri CLI
         working-directory: ./
@@ -102,3 +145,4 @@ jobs:
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
+          args: --bundles nsis,msi
