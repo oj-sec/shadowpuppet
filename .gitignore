@@ -34,9 +34,6 @@ yarn-error.log*
 /frontend/!.env.example
 /frontend/vite.config.js.timestamp-*
 /frontend/vite.config.ts.timestamp-*
-/frontend/package-lock.json
-/frontend/yarn.lock
-/frontend/pnpm-lock.yaml
 
 # Python / FastAPI
 /server/databases/
@@ -72,7 +69,6 @@ yarn-error.log*
 # Tauri builds and dependencies
 /src-tauri/target/
 /src-tauri/WixTools/
-/src-tauri/Cargo.lock
 /src-tauri/*.rs.bk
 /src-tauri/dist/
 /src-tauri/.cargo-ok
