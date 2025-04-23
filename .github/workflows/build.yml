@@ -161,7 +161,7 @@ jobs:
             elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               OS_TRIPLE="aarch64-pc-windows-msvc"
             fi
-            BINARY="./server/dist/${APP_NAME}-${OS_TRIPLE}.exe"
+            BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}.exe"
             DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}.exe"
           elif [ "${{ runner.os }}" = "Linux" ]; then
             if [ "$(uname -m)" = "x86_64" ]; then
@@ -169,7 +169,7 @@ jobs:
             elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               OS_TRIPLE="aarch64-unknown-linux-gnu"
             fi
-            BINARY="./server/dist/${APP_NAME}-${OS_TRIPLE}"
+            BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}"
             DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}"
           elif [ "${{ runner.os }}" = "macOS" ]; then
             if [ "$(uname -m)" = "x86_64" ]; then
