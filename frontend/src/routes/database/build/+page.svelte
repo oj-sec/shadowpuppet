@@ -56,9 +56,11 @@
     import IconDropzone from '@lucide/svelte/icons/image-plus';
     import IconFile from '@lucide/svelte/icons/paperclip';
     import IconRemove from '@lucide/svelte/icons/circle-x';
+    import { ProgressRing } from '@skeletonlabs/skeleton-svelte';
     
     let fileObject: File | null = $state(null);
     let isFileSelected = $state(false);
+    let isFileUploading = $state(false);
     function handleFileChange(event: any) {
         const file = event.acceptedFiles[0];
         if (!file)  {
@@ -78,6 +80,7 @@
     });
     
     async function uploadFile() {
+        isFileUploading = true;
         const formData = new FormData();
         formData.append('file', fileObject);
         const response = await fetch('/api/database/upload-file', {
@@ -90,6 +93,7 @@
         } else {
             createToast("Error", "Failed to upload file.", "error");
         }
+        isFileUploading = false;
     }
     
     // Step Two Functionality
@@ -155,45 +159,53 @@
                 {#snippet iconFile()}<IconFile class="size-4" />{/snippet}
                 {#snippet iconFileRemove()}<IconRemove class="size-4" />{/snippet}
             </FileUpload>
+            {#if isFileUploading }
+            <button disabled type="button" class="btn mt-2 preset-filled min-w-[6rem]">
+                <span><ProgressRing value={null} size="size-6" meterStroke="stroke-primary-600-400" trackStroke="stroke-primary-50-950" />
+                </span>
+            </button>
+            {:else}
             <button disabled={!isFileSelected} onclick={uploadFile} type="button" class="btn mt-2 preset-filled">
                 <span>Upload</span>
-            </div>
-            {:else if i === 1}
-            <div class="card bg-surface-100-900 p-8 space-y-2 text-center max-h-[60vh] flex flex-col">
-                <h2 class="h3 m-2">Preview data</h2>
-                <div class="flex-grow">
-                    <DataPreview />
-                </div>
-            </div>
-            {:else if i === 2}
-            <div class="card bg-surface-100-900 p-8 space-y-2 text-center">
-                <EmbeddingConfig bind:embeddingsConfigured={embeddingsConfigured}/>                
-            </div>
-            {:else if i === 3}
-            <div class="card bg-surface-100-900 p-8 space-y-2 text-center items-center">
-                <EmbeddingProcessTracker bind:embeddingsCompleted={embeddingsCompleted} />
-            </div>
+            </button>
             {/if}
-            {/if}
-            {/each}
-            <nav class="flex justify-between items-center gap-4">
-                <button type="button" class="btn preset-tonal hover:preset-filled" onclick={prevStep} disabled={isFirstStep}>
-                    <IconArrowLeft size={18} />
-                    <span>Previous</span>
-                </button>
-                {#if !isLastStep}
-                <button type="button" class="btn preset-tonal hover:preset-filled" onclick={nextStep} disabled={isNextDisabled}>
-                    <span>Next</span>
-                    <IconArrowRight size={18} />
-                </button>
-                {:else}
-                <button type="button" class="btn preset-tonal hover:preset-filled" onclick={finish} disabled={!embeddingsCompleted}>
-                    <span>Finish</span>
-                    <IconArrowRight size={18} />
-                </button>
-                {/if}
-            </nav>
         </div>
+        {:else if i === 1}
+        <div class="card bg-surface-100-900 p-8 space-y-2 text-center max-h-[60vh] flex flex-col">
+            <h2 class="h3 m-2">Preview data</h2>
+            <div class="flex-grow">
+                <DataPreview />
+            </div>
+        </div>
+        {:else if i === 2}
+        <div class="card bg-surface-100-900 p-8 space-y-2 text-center">
+            <EmbeddingConfig bind:embeddingsConfigured={embeddingsConfigured}/>                
+        </div>
+        {:else if i === 3}
+        <div class="card bg-surface-100-900 p-8 space-y-2 text-center items-center">
+            <EmbeddingProcessTracker bind:embeddingsCompleted={embeddingsCompleted} />
+        </div>
+        {/if}
+        {/if}
+        {/each}
+        <nav class="flex justify-between items-center gap-4">
+            <button type="button" class="btn preset-tonal hover:preset-filled" onclick={prevStep} disabled={isFirstStep}>
+                <IconArrowLeft size={18} />
+                <span>Previous</span>
+            </button>
+            {#if !isLastStep}
+            <button type="button" class="btn preset-tonal hover:preset-filled" onclick={nextStep} disabled={isNextDisabled}>
+                <span>Next</span>
+                <IconArrowRight size={18} />
+            </button>
+            {:else}
+            <button type="button" class="btn preset-tonal hover:preset-filled" onclick={finish} disabled={!embeddingsCompleted}>
+                <span>Finish</span>
+                <IconArrowRight size={18} />
+            </button>
+            {/if}
+        </nav>
     </div>
+</div>
 </div>
 </div>
