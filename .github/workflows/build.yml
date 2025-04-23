@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     
     strategy:
       fail-fast: false
@@ -23,10 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      # Extract version from tag (removing 'v' prefix)
-      - name: Extract version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+      # Extract version from tag (removing 'v' prefix) or use 'dev' for manual runs
+      - name: Set version
+        id: set_version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+            echo "IS_TAG=true" >> $GITHUB_ENV
+          else
+            echo "VERSION=dev" >> $GITHUB_ENV
+            echo "IS_TAG=false" >> $GITHUB_ENV
+          fi
         shell: bash
       
       # Setup Node.js for both frontend and Tauri
@@ -79,14 +86,15 @@ jobs:
         working-directory: ./
         run: npm install -g @tauri-apps/cli
       
-      # Build Tauri app with sidecar integration
-      - name: Build Tauri App
+      # Build Tauri app with sidecar integration - only for tag pushes
+      - name: Build Tauri App with Release
+        if: env.IS_TAG == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: ./src-tauri
-          tagName: ${{ github.ref_name }}  # Use the tag name as is
+          tagName: ${{ github.ref_name }}
           releaseName: 'Shadowpuppet ${{ github.ref_name }}'
           releaseBody: |
             This release contains Shadowpuppet builds for Windows and macOS:
@@ -95,9 +103,17 @@ jobs:
             - PyInstaller executables for both platforms
           releaseDraft: true
           prerelease: false
-          
-      # Add PyInstaller executables to release
+      
+      # Just build without creating a release for manual runs
+      - name: Build Tauri App without Release
+        if: env.IS_TAG == 'false'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: ./src-tauri
+      
+      # Add PyInstaller executables to release - only for tag pushes
       - name: Add PyInstaller executables to release
+        if: env.IS_TAG == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
