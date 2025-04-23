@@ -2,13 +2,12 @@
 Module to handle slqite3 database connections.
 """
 
-import sqlite3
 import logging
-import sys
 import pickle
-
-from pathlib import Path
+import sqlite3
+import sys
 from datetime import datetime
+from pathlib import Path
 
 
 class DatabaseConnector:
@@ -20,7 +19,7 @@ class DatabaseConnector:
     def __init__(self, database_filename):
         logging.info("DatabaseConnector initialising.")
         self.database_filename = database_filename
-        self.databases_directory = Path(sys.argv[0]).parent / 'databases'
+        self.databases_directory = Path(sys.argv[0]).parent / "databases"
         self.conn = sqlite3.connect(self.databases_directory / database_filename)
         self.cursor = self.conn.cursor()
         logging.info("DatabaseConnector initialised.")
@@ -64,7 +63,7 @@ class DatabaseConnector:
         """
         logging.info("DatabaseConnector getting unenriched documents.")
         self.cursor.execute(
-            f"SELECT * FROM data WHERE \"{embedding_field}\" IS NULL LIMIT {count}"
+            f'SELECT * FROM data WHERE "{embedding_field}" IS NULL LIMIT {count}'
         )
         columns = [description[0] for description in self.cursor.description]
         data = [dict(zip(columns, row)) for row in self.cursor.fetchall()]
@@ -79,9 +78,7 @@ class DatabaseConnector:
         logging.info("DatabaseConnector creating field to store embeddings.")
         if not field_name.endswith("_embedding"):
             field_name += "_embedding"
-        self.cursor.execute(
-            f"ALTER TABLE data ADD COLUMN \"{field_name}\" BLOB"
-        )
+        self.cursor.execute(f'ALTER TABLE data ADD COLUMN "{field_name}" BLOB')
         self.conn.commit()
         logging.info("DatabaseConnector created field to store embeddings.")
         return field_name
@@ -93,7 +90,7 @@ class DatabaseConnector:
         logging.info("DatabaseConnector writing enriched documents.")
         for document in documents:
             self.cursor.execute(
-                f"UPDATE data SET \"{storage_field}\" = ? WHERE _id = ?",
+                f'UPDATE data SET "{storage_field}" = ? WHERE _id = ?',
                 (document[storage_field], document["_id"]),
             )
         self.conn.commit()
@@ -106,7 +103,7 @@ class DatabaseConnector:
         """
         logging.info("DatabaseConnector getting completed document count.")
         self.cursor.execute(
-            f"SELECT COUNT(*) FROM data WHERE \"{storage_field}\" IS NOT NULL"
+            f'SELECT COUNT(*) FROM data WHERE "{storage_field}" IS NOT NULL'
         )
         completed_document_count = self.cursor.fetchone()[0]
         logging.info("DatabaseConnector returning completed document count.")
@@ -125,8 +122,8 @@ class DatabaseConnector:
         if not embedding_field:
             logging.error("DatabaseConnector could not find embedding field.")
             raise ValueError("DatabaseConnector could not find embedding field.")
-        
-        self.cursor.execute(f"SELECT _id, \"{embedding_field}\" FROM data")
+
+        self.cursor.execute(f'SELECT _id, "{embedding_field}" FROM data')
         data = self.cursor.fetchall()
         embeddings_dict = {}
         for row in data:
@@ -146,7 +143,7 @@ class DatabaseConnector:
 
     def get_data_by_id(self, id):
         """
-        Method to get data by ID from the database, 
+        Method to get data by ID from the database,
         except for the embedding field.
         """
         logging.info("DatabaseConnector getting data by ID.")
@@ -157,34 +154,39 @@ class DatabaseConnector:
             (col for col in columns if col.endswith("_embedding")), None
         )
         if embedding_field:
-            del data[embedding_field]            
+            del data[embedding_field]
         logging.info("DatabaseConnector returning data by ID.")
         return data
 
     def simple_query(self, field, query, operator):
         """
-        Method to execure a simple query using a field, query, and 
+        Method to execure a simple query using a field, query, and
         operator, which is one of equals, does not equal, contains,
         does not contain, and return maching ids.
         """
         logging.info("DatabaseConnector executing simple query.")
         if operator == "equals":
-            self.cursor.execute(f"SELECT _id FROM data WHERE \"{field}\" = ?", (query,))
+            self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" = ?', (query,))
         elif operator == "not equals":
-            self.cursor.execute(f"SELECT _id FROM data WHERE \"{field}\" != ?", (query,))
+            self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" != ?', (query,))
         elif operator == "contains":
-            self.cursor.execute(f"SELECT _id FROM data WHERE \"{field}\" LIKE ?", (f"%{query}%",))
+            self.cursor.execute(
+                f'SELECT _id FROM data WHERE "{field}" LIKE ?', (f"%{query}%",)
+            )
         elif operator == "not contains":
-            self.cursor.execute(f"SELECT _id FROM data WHERE \"{field}\" NOT LIKE ?", (f"%{query}%",))
+            self.cursor.execute(
+                f'SELECT _id FROM data WHERE "{field}" NOT LIKE ?', (f"%{query}%",)
+            )
         else:
             logging.error("DatabaseConnector invalid operator for simple query.")
             raise ValueError("DatabaseConnector invalid operator for simple query.")
-        
+
         ids = [row[0] for row in self.cursor.fetchall()]
         if not ids:
             return []
         logging.info("DatabaseConnector returning IDs from simple query.")
         return ids
+
 
 class DatabaseCreator:
     """
@@ -195,57 +197,61 @@ class DatabaseCreator:
 
     def __init__(self):
         logging.info("DatabaseCreator initialising.")
-        self.databases_directory = Path(sys.argv[0]).parent / 'databases'
+        self.databases_directory = Path(sys.argv[0]).parent / "databases"
         self.databases_directory.mkdir(parents=True, exist_ok=True)
         logging.info("DatabaseCreator initialised.")
 
     def list_databases(self):
         """
-        Method to list all databases in the databases directory, 
+        Method to list all databases in the databases directory,
         including name, row count, table names, and column information.
         Returns a list of dictionaries with detailed information about each database.
         """
         logging.info("DatabaseCreator listing databases with details.")
-        databases = [f for f in self.databases_directory.iterdir() if f.is_file() and f.suffix == '.db']
+        databases = [
+            f
+            for f in self.databases_directory.iterdir()
+            if f.is_file() and f.suffix == ".db"
+        ]
         result = []
-        
+
         for db_file in databases:
             db_info = {"name": db_file.name}
-            
+
             try:
                 conn = sqlite3.connect(str(db_file))
                 cursor = conn.cursor()
-                
+
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                 tables = cursor.fetchall()
                 table_info = {}
-                
+
                 for table in tables:
                     table_name = table[0]
-                    
-                    if table_name == 'sqlite_sequence':
+
+                    if table_name == "sqlite_sequence":
                         continue
-                    
+
                     cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
                     row_count = cursor.fetchone()[0]
-                    
+
                     cursor.execute(f"PRAGMA table_info({table_name});")
                     columns = [col[1] for col in cursor.fetchall()]
-                    
+
                     table_info[table_name] = {
                         "columns": columns,
-                        "row_count": row_count
+                        "row_count": row_count,
                     }
-                
+
                 db_info["tables"] = table_info
                 conn.close()
-                
+
             except Exception as e:
                 logging.error(f"Error getting details for {db_file.name}: {str(e)}")
                 db_info["tables"] = {}
-            
+
             result.append(db_info)
-        
+
         logging.info("DatabaseCreator returning detailed list of databases.")
         return result
 
@@ -265,7 +271,7 @@ class DatabaseCreator:
             raise ValueError("DatabaseCreator received empty data_list.")
 
         columns = list(data_list[0].keys())
-        columns_escaped = [f'"{col}"' for col in columns]  
+        columns_escaped = [f'"{col}"' for col in columns]
 
         table_name = "data"
         create_table_query = f"""
@@ -283,8 +289,8 @@ class DatabaseCreator:
                     processed_row[k] = v
                 else:
                     processed_row[k] = str(v)
-            
-            placeholders = ', '.join(['?'] * len(processed_row))
+
+            placeholders = ", ".join(["?"] * len(processed_row))
             insert_query = f"""
                 INSERT INTO {table_name} ({', '.join(columns_escaped)}) 
                 VALUES ({placeholders})
