@@ -277,12 +277,19 @@ class DatabaseCreator:
         cursor.execute(create_table_query)
 
         for data_row in data_list:
-            placeholders = ', '.join(['?'] * len(data_row))
+            processed_row = {}
+            for k, v in data_row.items():
+                if v is None or isinstance(v, (int, float, str, bytes)):
+                    processed_row[k] = v
+                else:
+                    processed_row[k] = str(v)
+            
+            placeholders = ', '.join(['?'] * len(processed_row))
             insert_query = f"""
                 INSERT INTO {table_name} ({', '.join(columns_escaped)}) 
                 VALUES ({placeholders})
             """
-            cursor.execute(insert_query, tuple(data_row.values()))
+            cursor.execute(insert_query, tuple(processed_row.values()))
 
         conn.commit()
         conn.close()
