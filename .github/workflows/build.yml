@@ -98,8 +98,8 @@ jobs:
           releaseName: 'Shadowpuppet ${{ github.ref_name }}'
           releaseBody: |
             This release contains Shadowpuppet builds for Windows and macOS:
-            - Windows: NSIS installer (x86_64)
-            - macOS: .app bundle (x86_64/arm64 depending on runner)
+            - Tauri Windows NSIS installer (x86_64)
+            - Tauri macOS .app bundle (arm64)
             - PyInstaller executables for both platforms
           releaseDraft: true
           prerelease: false
