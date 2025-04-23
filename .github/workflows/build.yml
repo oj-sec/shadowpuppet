@@ -177,7 +177,7 @@ jobs:
             elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               OS_TRIPLE="aarch64-apple-darwin"
             fi
-            BINARY="./server/dist/${APP_NAME}-${OS_TRIPLE}"
+            BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}"
             DEST_NAME="${APP_NAME}-${OS_TRIPLE}"
           fi
           
