@@ -252,7 +252,7 @@ closeOnEscape={false}
 <div class="w-full items-center text-center">
   {#if validationInProgress}
   <button onclick={validate} disabled={validationInProgress} type="button" class="btn mt-2 preset-filled min-w-[6rem]">
-    <span><ProgressRing value={null} size="size-7" meterStroke="stroke-primary-600-400" trackStroke="stroke-primary-50-950" />
+    <span><ProgressRing value={null} size="size-6" meterStroke="stroke-primary-600-400" trackStroke="stroke-primary-50-950" />
     </span>
   </button>
   {:else}

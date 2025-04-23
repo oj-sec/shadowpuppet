@@ -121,7 +121,7 @@
 
 
 <div class="w-full h-[92vh] flex justify-center items-center">
-    <div class="w-1/2">
+    <div class="w-1/2 max-h-3/4">
         <div class="w-full">
             <div class="space-y-8">
                 <div class="relative">
@@ -161,7 +161,7 @@
             {:else if i === 1}
             <div class="card bg-surface-100-900 p-8 space-y-2 text-center max-h-[60vh] flex flex-col">
                 <h2 class="h3 m-2">Preview data</h2>
-                <div class="overflow-y-auto flex-grow">
+                <div class="flex-grow">
                     <DataPreview />
                 </div>
             </div>

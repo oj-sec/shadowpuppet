@@ -20,8 +20,8 @@
 </script>
 
 {#if loaded}
-<div class="h-full overflow-auto">
-    <CodeBlock code={JSON.stringify(preveiwData, null, 4)} lang="json" />
+<div class="overflow-auto">
+    <CodeBlock code={JSON.stringify(preveiwData, null, 4)} lang="json" base="max-h-[40vh] overflow-y-auto overflow-x-hidden" />
 </div>
 {:else}
 <div class="flex justify-center items-center w-full h-full my-16">

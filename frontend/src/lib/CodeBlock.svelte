@@ -29,7 +29,7 @@
         lang = 'console',
         theme = 'dark-plus',
         // Base Style Props
-        base = 'h-full overflow-y-auto overflow-x-hidden',
+        base = 'overflow-y-auto overflow-x-hidden',
         rounded = 'rounded-container',
         shadow = '',
         classes = 'text-left break-words',
