@@ -22,33 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      # Free up disk space on Linux runners
-      - name: Free up disk space
-        if: runner.os == 'Linux'
-        run: |
-          # Show initial disk space
-          df -h
-          
-          # Remove unnecessary large packages
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          
-          # Clean apt cache thoroughly
-          sudo apt-get clean
-          sudo apt-get autoclean
-          sudo apt-get autoremove -y
-          sudo rm -rf /var/lib/apt/lists/*
-          
-          # Clear Docker images if installed
-          if command -v docker &> /dev/null; then
-            docker system prune -af
-          fi
-          
-          # Show disk space after cleanup
-          df -h
-      
       # Setup Node.js for both frontend and Tauri
       - name: Setup Node
         uses: actions/setup-node@v3
@@ -84,18 +57,21 @@ jobs:
         working-directory: ./server
         run: python build.py
       
-      # Install Rust for Tauri
+      # Install Rust for Tauri (skip on Linux)
       - name: Install Rust (stable)
+        if: runner.os != 'Linux'
         uses: dtolnay/rust-toolchain@stable
       
-      # Cache Rust dependencies
+      # Cache Rust dependencies (skip on Linux)
       - name: Rust cache
+        if: runner.os != 'Linux'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
       
-      # Install Tauri dependencies
+      # Install Tauri dependencies (skip on Linux)
       - name: Install Tauri dependencies
+        if: runner.os != 'Linux'
         working-directory: ./src-tauri
         run: |
           # Linux dependencies
@@ -112,29 +88,15 @@ jobs:
           fi
         shell: bash
       
-      # Clean up more disk space before the final build (Linux only)
-      - name: Clean build artifacts
-        if: runner.os == 'Linux'
-        run: |
-          # Clean npm cache
-          npm cache clean --force
-          
-          # Clean pip cache
-          pip cache purge
-          
-          # Remove any large unnecessary files from previous steps
-          rm -rf ~/.cargo/registry/
-          
-          # Display disk space
-          df -h
-      
-      # Install Tauri CLI dependencies
+      # Install Tauri CLI dependencies (skip on Linux)
       - name: Install Tauri CLI
+        if: runner.os != 'Linux'
         working-directory: ./
         run: npm install -g @tauri-apps/cli
       
-      # Build Tauri app with sidecar integration
+      # Build Tauri app with sidecar integration (skip on Linux)
       - name: Build Tauri App
+        if: runner.os != 'Linux'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -178,15 +140,38 @@ jobs:
               OS_TRIPLE="aarch64-apple-darwin"
             fi
             BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}"
-            DEST_NAME="${APP_NAME}-${OS_TRIPLE}"
+            DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}"
           fi
           
           if [ -f "$BINARY" ]; then
             echo "Found executable: $BINARY"
             
-            # Find the most recent draft release (should be the one just created by tauri-action)
-            echo "Looking for the most recent draft release..."
-            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
+            # For Linux, create a release if one doesn't exist (since Tauri-action is skipped)
+            if [ "${{ runner.os }}" = "Linux" ] && [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+              # Check if a release already exists
+              RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
+              
+              if [ -z "$RELEASE_ID" ]; then
+                echo "Creating a new release for Linux builds..."
+                VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+                RELEASE=$(gh api \
+                  --method POST \
+                  -H "Accept: application/vnd.github+json" \
+                  /repos/${{ github.repository }}/releases \
+                  -f tag_name="${{ github.ref_name }}" \
+                  -f name="Shadowpuppet v${VERSION}" \
+                  -f body="This release contains Shadowpuppet PyInstaller builds." \
+                  -f draft=true \
+                  -f prerelease=false)
+                
+                RELEASE_ID=$(echo "$RELEASE" | jq -r '.id')
+                echo "Created release ID: $RELEASE_ID"
+              fi
+            else
+              # Find the most recent draft release (should be the one created by tauri-action)
+              echo "Looking for the most recent draft release..."
+              RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
+            fi
             
             if [ -n "$RELEASE_ID" ]; then
               echo "Found draft release ID: $RELEASE_ID"
@@ -209,7 +194,7 @@ jobs:
               
               echo "Upload completed"
             else
-              echo "No draft releases found. This is unexpected as tauri-action should have created one."
+              echo "No draft releases found. This is unexpected."
               echo "Available releases:"
               gh api repos/${{ github.repository }}/releases | jq -r '.[] | {id: .id, name: .name, draft: .draft, tag_name: .tag_name}'
             fi
