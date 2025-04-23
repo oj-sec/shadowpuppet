@@ -2,25 +2,32 @@ name: Build Tauri App
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')'
+    
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, windows-latest]
+        platform: [macos-latest, windows-latest]
     
     runs-on: ${{ matrix.platform }}
     
     steps:
       - uses: actions/checkout@v3
+      
+      # Extract version from tag (removing 'v' prefix)
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        shell: bash
       
       # Setup Node.js for both frontend and Tauri
       - name: Setup Node
@@ -57,60 +64,41 @@ jobs:
         working-directory: ./server
         run: python build.py
       
-      # Install Rust for Tauri (skip on Linux)
+      # Install Rust for Tauri
       - name: Install Rust (stable)
-        if: runner.os != 'Linux'
         uses: dtolnay/rust-toolchain@stable
       
-      # Cache Rust dependencies (skip on Linux)
+      # Cache Rust dependencies
       - name: Rust cache
-        if: runner.os != 'Linux'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
       
-      # Install Tauri dependencies (skip on Linux)
-      - name: Install Tauri dependencies
-        if: runner.os != 'Linux'
-        working-directory: ./src-tauri
-        run: |
-          # Linux dependencies
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y libwebkit2gtk-4.1-dev \
-              build-essential \
-              curl \
-              wget \
-              libssl-dev \
-              libgtk-3-dev \
-              libayatana-appindicator3-dev \
-              librsvg2-dev
-          fi
-        shell: bash
-      
-      # Install Tauri CLI dependencies (skip on Linux)
+      # Install Tauri CLI dependencies
       - name: Install Tauri CLI
-        if: runner.os != 'Linux'
         working-directory: ./
         run: npm install -g @tauri-apps/cli
       
-      # Build Tauri app with sidecar integration (skip on Linux)
+      # Build Tauri app with sidecar integration
       - name: Build Tauri App
-        if: runner.os != 'Linux'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: ./src-tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Shadowpuppet v__VERSION__'
-          releaseBody: 'This release contains Shadowpuppet Tauri x86 builds for Windows (NSIS) and MacOS (.app) and PyInstaller x86 builds for Windows, MacOS, and Linux.'
+          tagName: ${{ github.ref_name }}  # Use the tag name as is
+          releaseName: 'Shadowpuppet ${{ github.ref_name }}'
+          releaseBody: |
+            This release contains Shadowpuppet builds for Windows and macOS:
+            - Windows: NSIS installer (x86_64)
+            - macOS: .app bundle (x86_64/arm64 depending on runner)
+            - PyInstaller executables for both platforms
           releaseDraft: true
           prerelease: false
           
       # Add PyInstaller executables to release
       - name: Add PyInstaller executables to release
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/')  # Only run on tag pushes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -125,65 +113,30 @@ jobs:
             fi
             BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}.exe"
             DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}.exe"
-          elif [ "${{ runner.os }}" = "Linux" ]; then
-            if [ "$(uname -m)" = "x86_64" ]; then
-              OS_TRIPLE="x86_64-unknown-linux-gnu"
-            elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
-              OS_TRIPLE="aarch64-unknown-linux-gnu"
-            fi
-            BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}"
-            DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}"
           elif [ "${{ runner.os }}" = "macOS" ]; then
             if [ "$(uname -m)" = "x86_64" ]; then
               OS_TRIPLE="x86_64-apple-darwin"
+              ARCH_LABEL="intel"
             elif [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
               OS_TRIPLE="aarch64-apple-darwin"
+              ARCH_LABEL="apple-silicon"
             fi
             BINARY="./server/dist/${APP_NAME}-server-${OS_TRIPLE}"
-            DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}"
+            DEST_NAME="${APP_NAME}-pyinstaller-${OS_TRIPLE}-${ARCH_LABEL}"
           fi
           
           if [ -f "$BINARY" ]; then
             echo "Found executable: $BINARY"
             
-            # For Linux, create a release if one doesn't exist (since Tauri-action is skipped)
-            if [ "${{ runner.os }}" = "Linux" ] && [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
-              # Check if a release already exists
-              RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
-              
-              if [ -z "$RELEASE_ID" ]; then
-                echo "Creating a new release for Linux builds..."
-                VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
-                RELEASE=$(gh api \
-                  --method POST \
-                  -H "Accept: application/vnd.github+json" \
-                  /repos/${{ github.repository }}/releases \
-                  -f tag_name="${{ github.ref_name }}" \
-                  -f name="Shadowpuppet v${VERSION}" \
-                  -f body="This release contains Shadowpuppet PyInstaller builds." \
-                  -f draft=true \
-                  -f prerelease=false)
-                
-                RELEASE_ID=$(echo "$RELEASE" | jq -r '.id')
-                echo "Created release ID: $RELEASE_ID"
-              fi
-            else
-              # Find the most recent draft release (should be the one created by tauri-action)
-              echo "Looking for the most recent draft release..."
-              RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true) | .id' | head -1)
-            fi
+            # Find the draft release created by tauri-action
+            echo "Looking for draft release..."
+            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.draft==true and .tag_name=="${{ github.ref_name }}") | .id' | head -1)
             
             if [ -n "$RELEASE_ID" ]; then
               echo "Found draft release ID: $RELEASE_ID"
               
-              # Get release info for logging purposes
-              RELEASE_INFO=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '{name: .name, tag_name: .tag_name}')
-              echo "Release info: $RELEASE_INFO"
-              
-              # Upload using GitHub CLI which handles large files better
+              # Upload using GitHub CLI
               echo "Uploading $DEST_NAME to release $RELEASE_ID..."
-              
-              # Use GitHub CLI for the upload instead of curl
               gh release upload \
                 --repo ${{ github.repository }} \
                 --clobber \
@@ -192,7 +145,7 @@ jobs:
               
               echo "Upload completed"
             else
-              echo "No draft releases found. This is unexpected."
+              echo "No matching draft release found for tag ${{ github.ref_name }}"
               echo "Available releases:"
               gh api repos/${{ github.repository }}/releases | jq -r '.[] | {id: .id, name: .name, draft: .draft, tag_name: .tag_name}'
             fi

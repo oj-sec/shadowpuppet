@@ -38,6 +38,7 @@ cmd = [
     "pyinstaller",
     f"--add-data=../frontend/build{sep}frontend/build",
     "--onefile",
+    "--strip",
     f"--name={output_name}",
     "server.py"
 ]
