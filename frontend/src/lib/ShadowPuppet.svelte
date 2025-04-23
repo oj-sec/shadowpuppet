@@ -231,10 +231,10 @@
                         </div>
                         {#if lockedField}
                         {#key lockedField}
-                        <CodeBlock code={JSON.stringify(pointData[lockedField], null, 2)} textSize="text-xs" lang="json" />
+                        <CodeBlock code={JSON.stringify(pointData[lockedField], null, 2)} textSize="text-xs max-h-[70vh] overflow-y-auto overflow-x-hidden" lang="json" />
                         {/key}
                         {:else}
-                        <CodeBlock code={JSON.stringify(pointData, null, 2)} textSize="text-xs" lang="json" />
+                        <CodeBlock code={JSON.stringify(pointData, null, 2)} textSize="text-xs max-h-[70vh] overflow-y-auto overflow-x-hidden" lang="json" />
                         {/if}
                         {:else if pointDataLoading}
                         <div class="flex justify-center items-center w-full h-full my-48">
