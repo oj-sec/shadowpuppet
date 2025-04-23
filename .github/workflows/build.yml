@@ -104,7 +104,7 @@ jobs:
           projectPath: ./src-tauri
           tagName: ${{ github.ref_name }}
           releaseName: 'Shadowpuppet v__VERSION__'
-          releaseBody: 'This release contains Shadowpuppet Tauri and PyInstaller builds.'
+          releaseBody: 'This release contains Shadowpuppet Tauri x86 builds for Windows (NSIS) and MacOS (.app) and PyInstaller x86 builds for Windows, MacOS, and Linux.'
           releaseDraft: true
           prerelease: false
           
@@ -180,17 +180,15 @@ jobs:
               RELEASE_INFO=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '{name: .name, tag_name: .tag_name}')
               echo "Release info: $RELEASE_INFO"
               
-              # Upload directly using the GitHub API
+              # Upload using GitHub CLI which handles large files better
               echo "Uploading $DEST_NAME to release $RELEASE_ID..."
-              UPLOAD_URL=$(gh api repos/${{ github.repository }}/releases/$RELEASE_ID --jq '.upload_url' | sed 's/{?name,label}//')
               
-              # Use curl for the upload
-              curl -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Content-Type: application/octet-stream" \
-                -H "Accept: application/vnd.github.v3+json" \
-                --data-binary @"$BINARY" \
-                "${UPLOAD_URL}?name=${DEST_NAME}"
+              # Use GitHub CLI for the upload instead of curl
+              gh release upload \
+                --repo ${{ github.repository }} \
+                --clobber \
+                ${{ github.ref_name }} \
+                "$BINARY#$DEST_NAME"
               
               echo "Upload completed"
             else
