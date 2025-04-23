@@ -11,8 +11,9 @@
     let percentCompleted = $derived(Math.floor(completedDocuments / totalDocuments * 100));
     let documentsPerMinute = $state(0);
     let estimatedSecondsRemaining = $state(0);
+    let estimatedParsedTimeRemaining = $derived(formatTimeRemaining(estimatedSecondsRemaining));
     let startTime = $state(Date.now());
-
+    
     $effect(() => {
         if (completedDocuments > 0 && totalDocuments > 0) {
             documentsPerMinute = Math.floor((completedDocuments / (Date.now() - startTime)) * 60 * 1000);
@@ -51,10 +52,26 @@
                 embeddingStarted = true;
                 embeddingsCompleted = true;
             }
-        }, 1000); 
+        }, 1500); 
     }
     
     progressWatcherFunction();
+    
+    function formatTimeRemaining(seconds: number): string {
+        if (seconds == 0) {
+            return "";
+        } else if (seconds < 60) {
+            return `${seconds} seconds${seconds === 1 ? '' : 's'}`;
+        } else if (seconds < 3600) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes} minute${minutes === 1 ? '' : 's'}${remainingSeconds > 0 ? ` ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}` : ''}`;
+        } else {
+            const hours = Math.floor(seconds / 3600);
+            const remainingMinutes = Math.floor((seconds % 3600) / 60);
+            return `${hours} hour${hours === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
+        }
+    }    
     
 </script>
 
@@ -81,7 +98,7 @@
                 </tr>
                 <tr>
                     <td class="text-left">Estimated time remaining:</td>
-                    <td class="text-right">{estimatedSecondsRemaining} seconds</td>
+                    <td class="text-right">{estimatedParsedTimeRemaining}</td>
                 </tr>
             </tbody>
         </table>
