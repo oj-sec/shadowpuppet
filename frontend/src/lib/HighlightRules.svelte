@@ -10,6 +10,7 @@
     import { onMount } from "svelte";
     import { Tabs } from "@skeletonlabs/skeleton-svelte";
     import { hexToHSL, hslToHex } from "$lib/colourOperations.js";
+    import { ProgressRing } from "@skeletonlabs/skeleton-svelte";
     
     let columnOptions: string[] = $state([]);
     let selectedField: string = $state("");
@@ -21,6 +22,7 @@
     let maximumBuckets: number | null = $state(null);
     let idTicker: number = $state(0);
     let group = $state("Query");
+    let queryLoading = $state(false);
     
     onMount(async () => {
         const response = await fetch('/api/database/columns');
@@ -48,6 +50,7 @@
     });
     
     async function modalConfirm() {
+        queryLoading = true;
         if (group === "Query") {
             const points = await queryForPointsMatching(query, selectedOperator);
             const rule = {
@@ -107,6 +110,7 @@
             idTicker++;
             modalClose();
         }
+        queryLoading = false;
     }
     
     async function queryForPointsMatching(query: string, operator: string): Promise<number[]> {
@@ -325,9 +329,16 @@ backdropClasses="backdrop-blur-sm"
     </article>
     <footer class="flex justify-end gap-4">
         <button type="button" class="btn preset-tonal" onclick={modalClose}>Cancel</button>
-        <button disabled={!canConfrimModal} type="button" class="btn preset-filled" onclick={modalConfirm}>Confirm</button>
-    </footer>
-    {/snippet}
+        {#if queryLoading}
+        <button type="button" class="btn preset-filled px-8" onclick={modalClose}><span><ProgressRing value={null} size="size-6" meterStroke="stroke-primary-600-400" trackStroke="stroke-primary-50-950" />
+        </span>
+    </button>
+    {:else}
+    <button disabled={!canConfrimModal} type="button" class="btn preset-filled" onclick={modalConfirm}>Confirm</button>
+    {/if}
+    
+</footer>
+{/snippet}
 </Modal>
 
 
