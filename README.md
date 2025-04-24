@@ -4,11 +4,11 @@
 
 Shadowpuppet is a GUI tool for visualising semantic scatter plots. Semantic scatter plots represent data with more aligned meaning as points that are closer on a graph. Graphs are produced by representing textual data in a high-dimensional space using sentence embeddings then projecting back down onto a 2d plot using techniques like PaCMAP. This approach results in context-aware visualisations of unstructured datasets. 
 
-Shadowpuppet facilitates graph creation and exploration reading data into a local sqlite database and executing queries to highlight points. Shadowpuppet uses local models and no data leaves your device. 
+Shadowpuppet facilitates graph creation and exploration by writing data and embeddings into a local sqlite database and executing queries to highlight points. Shadowpuppet uses local models and no data leaves your device. Shadowpuppet uses the GPU-accelerated [cosmos](https://github.com/cosmosgl/cosmos) library for visualisations and should handle point counts into the hundreds of thousands on most devices. 
 
 ## Installation
 
-Shadowpuppet is available as x86 Tauri binaries for Windows (NSIS installer) and macOS (.app bundle) under the releases section. Binaries contain the entire application in a single executable file for ease of use. The releases section also contains prebuilt  pyinstaller binaries for Windows (x86) and macOS (aarch64), which start a server on `http://localhost:8000` containing the UI. The application server uses singleton clients and is not suitable to serve multiple clients. 
+Shadowpuppet is available as Tauri binaries for Windows (x86 NSIS installer) and macOS (aarch64 .app bundle) under the releases section. Binaries contain the entire application in a single executable file for ease of use. The releases section also contains prebuilt  pyinstaller binaries for Windows (x86) and macOS (aarch64), which start a server on `http://localhost:8000` containing the UI. Note that the application server uses singleton clients and is not suitable to serve multiple clients or to be served remotely.
 
 Shadowpuppet can also be deployed via a Python FastAPI server serving a statically compiled Svelte5 web application. This is the recommended usage for Linux users due to excessive bundle sizes on Linux. The steps for serving the application require `npm` and `pip/python3` and are:
 
@@ -18,4 +18,4 @@ Shadowpuppet can also be deployed via a Python FastAPI server serving a statical
 4. run the server using `python3 server.py` from `./server`
 5. use Shadowpuppet at `http://localhost:8000` 
 
-Shadowpuppet working databases created will be created in a `./databases` directory in the same location the server executable or script runs from. Sentence transformer models are downloaded using the `huggingface-hub` Python library and will use the relevant [cache locations](https://huggingface.co/docs/huggingface_hub/en/guides/manage-cache).
+Shadowpuppet working databases will be created in a `./databases` directory in the same location the server executable or script runs from. Sentence transformer models are downloaded using the `huggingface-hub` Python library and will use the relevant [cache locations](https://huggingface.co/docs/huggingface_hub/en/guides/manage-cache).
