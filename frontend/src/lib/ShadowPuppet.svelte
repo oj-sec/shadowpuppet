@@ -187,11 +187,19 @@
         setGlobalPointColour();
         for (let i = highlightRules.length - 1; i >= 0; i--) {
             const rule = highlightRules[i];
-            const points = rule.points;
-            const colour = rule.colour;
-            // Address the off-by-one error in the points array
-            const adjustedPoints = points.map((point) => point - 1);
-            setPointColourByIndexes(adjustedPoints, colour);
+            if (rule.points) {
+                const points = rule.points;
+                const colour = rule.colour;
+                const adjustedPoints = points.map((point) => point - 1);
+                setPointColourByIndexes(adjustedPoints, colour);
+            } else if (rule.pointGroups) {
+                // pointGroups is a dict of #HEXCOLOUR : [ids]
+                const pointGroups = rule.pointGroups;
+                for (const [colour, points] of Object.entries(pointGroups)) {
+                    const adjustedPoints = points.map((point) => point - 1);
+                    setPointColourByIndexes(adjustedPoints, colour);
+                }
+            }
         }
     }
     $effect(() => {
@@ -231,10 +239,10 @@
                         </div>
                         {#if lockedField}
                         {#key lockedField}
-                        <CodeBlock code={JSON.stringify(pointData[lockedField], null, 2)} textSize="text-xs" lang="json" />
+                        <CodeBlock code={JSON.stringify(pointData[lockedField], null, 2)} textSize="text-xs max-h-[70vh] overflow-y-auto overflow-x-hidden" lang="json" />
                         {/key}
                         {:else}
-                        <CodeBlock code={JSON.stringify(pointData, null, 2)} textSize="text-xs" lang="json" />
+                        <CodeBlock code={JSON.stringify(pointData, null, 2)} textSize="text-xs max-h-[70vh] overflow-y-auto overflow-x-hidden" lang="json" />
                         {/if}
                         {:else if pointDataLoading}
                         <div class="flex justify-center items-center w-full h-full my-48">
@@ -272,7 +280,7 @@
                                             </tr>
                                             <tr>
                                                 <td>
-                                                    Global point color
+                                                    Base point color
                                                 </td>
                                                 <td>
                                                     <input class="input" type="color" bind:value={globalPointColour} />
@@ -280,7 +288,7 @@
                                             </tr>
                                             <tr>
                                                 <td>
-                                                    Global point size
+                                                    Base point size
                                                 </td>
                                                 <td>
                                                     <input 

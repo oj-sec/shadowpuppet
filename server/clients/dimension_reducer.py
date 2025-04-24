@@ -5,7 +5,9 @@ Module to handle dimension reduction.
 import logging
 
 from pacmap import PaCMAP
+
 from clients.database_connector import DatabaseConnector
+
 
 class DimensionReducer:
     """
@@ -13,13 +15,13 @@ class DimensionReducer:
     """
 
     def __init__(
-        self, 
+        self,
         n_neighbours=5,
         MN_ratio=0.5,
         FP_ratio=0.5,
         init="pca",
         normalise_range=(200, 200),
-        ):
+    ):
         logging.info("DimensionReducer initialising.")
         self.n_neighbours = n_neighbours
         self.MN_ratio = MN_ratio
@@ -28,7 +30,7 @@ class DimensionReducer:
         self.normalise_range = normalise_range
         self.map_vectors = None
         logging.info("DimensionReducer initialised.")
-    
+
     def _normalize_vectors(self, vectors):
         """
         Private method to normalize the vectors within the specified range.
@@ -42,8 +44,12 @@ class DimensionReducer:
         normalized_vectors = {}
         x_range, y_range = self.normalise_range
         for key, point in zip(keys, points):
-            x_norm = (point[0] - x_min) / (x_max - x_min) * 2 - 1 if x_max > x_min else 0
-            y_norm = (point[1] - y_min) / (y_max - y_min) * 2 - 1 if y_max > y_min else 0
+            x_norm = (
+                (point[0] - x_min) / (x_max - x_min) * 2 - 1 if x_max > x_min else 0
+            )
+            y_norm = (
+                (point[1] - y_min) / (y_max - y_min) * 2 - 1 if y_max > y_min else 0
+            )
             x_scaled = x_norm * (x_range / 2)
             y_scaled = y_norm * (y_range / 2)
             normalized_vectors[key] = [x_scaled, y_scaled]
@@ -67,9 +73,11 @@ class DimensionReducer:
             n_components=2,
             **config,
         )
-        map_vectors = projection_model.fit_transform(embeddings, init=self.init).tolist()
+        map_vectors = projection_model.fit_transform(
+            embeddings, init=self.init
+        ).tolist()
         map_vectors = dict(zip(embeddings_dict.keys(), map_vectors))
-        
+
         self.map_vectors = self._normalize_vectors(map_vectors)
-        
+
         return self.map_vectors
