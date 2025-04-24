@@ -8,7 +8,7 @@ Shadowpuppet facilitates graph creation and exploration reading data into a loca
 
 ## Installation
 
-Shadowpuppet is available as x86 Tauri binaries for Windows (NSIS installer) and macOS (.app bundle) under the releases section. Binaries contain the entire application in a single executable file for ease of use. The releases section also contains prebuilt x86 pyinstaller binaries for Windows and macOS, which start a server on `http://localhost:8000` containing the UI. The application server uses singleton clients and is not suitable to serve multiple clients. 
+Shadowpuppet is available as x86 Tauri binaries for Windows (NSIS installer) and macOS (.app bundle) under the releases section. Binaries contain the entire application in a single executable file for ease of use. The releases section also contains prebuilt  pyinstaller binaries for Windows (x86) and macOS (aarch64), which start a server on `http://localhost:8000` containing the UI. The application server uses singleton clients and is not suitable to serve multiple clients. 
 
 Shadowpuppet can also be deployed via a Python FastAPI server serving a statically compiled Svelte5 web application. This is the recommended usage for Linux users due to excessive bundle sizes on Linux. The steps for serving the application require `npm` and `pip/python3` and are:
 
