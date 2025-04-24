@@ -88,6 +88,22 @@ async def shutdown():
     return {"message": "Server shutting down"}
 
 
+@app.post("/api/visualise/sequentual-query")
+async def sequential_query(
+    request: Request,
+):
+    """
+    Route to return a specified number of buckets of point
+    indexes based on a specified sequential field.
+    """
+    if not clients["database_connector"]:
+        raise HTTPException(status_code=400, detail="No database loaded.")
+    data = await request.json()
+    return clients["database_connector"].sequential_query(
+        data["field"],
+        data["buckets"],
+    )
+
 @app.post("/api/visualise/simple-query")
 async def query(
     request: Request,

@@ -187,11 +187,19 @@
         setGlobalPointColour();
         for (let i = highlightRules.length - 1; i >= 0; i--) {
             const rule = highlightRules[i];
-            const points = rule.points;
-            const colour = rule.colour;
-            // Address the off-by-one error in the points array
-            const adjustedPoints = points.map((point) => point - 1);
-            setPointColourByIndexes(adjustedPoints, colour);
+            if (rule.points) {
+                const points = rule.points;
+                const colour = rule.colour;
+                const adjustedPoints = points.map((point) => point - 1);
+                setPointColourByIndexes(adjustedPoints, colour);
+            } else if (rule.pointGroups) {
+                // pointGroups is a dict of #HEXCOLOUR : [ids]
+                const pointGroups = rule.pointGroups;
+                for (const [colour, points] of Object.entries(pointGroups)) {
+                    const adjustedPoints = points.map((point) => point - 1);
+                    setPointColourByIndexes(adjustedPoints, colour);
+                }
+            }
         }
     }
     $effect(() => {
@@ -272,7 +280,7 @@
                                             </tr>
                                             <tr>
                                                 <td>
-                                                    Global point color
+                                                    Base point color
                                                 </td>
                                                 <td>
                                                     <input class="input" type="color" bind:value={globalPointColour} />
@@ -280,7 +288,7 @@
                                             </tr>
                                             <tr>
                                                 <td>
-                                                    Global point size
+                                                    Base point size
                                                 </td>
                                                 <td>
                                                     <input 

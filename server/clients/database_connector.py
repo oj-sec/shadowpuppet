@@ -6,7 +6,7 @@ import logging
 import pickle
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -160,7 +160,7 @@ class DatabaseConnector:
 
     def simple_query(self, field, query, operator):
         """
-        Method to execure a simple query using a field, query, and
+        Method to execute a simple query using a field, query, and
         operator, which is one of equals, does not equal, contains,
         does not contain, and return maching ids.
         """
@@ -187,6 +187,84 @@ class DatabaseConnector:
         logging.info("DatabaseConnector returning IDs from simple query.")
         return ids
 
+    def sequential_query(self, field, buckets):
+        """
+        Method to return a list of lists of point ids based on splitting
+        the specified sequential field into a specified number of buckets.
+        Works with both numeric fields and ISO-formatted date strings.
+        """
+        from datetime import timedelta
+        logging.info(f"DatabaseConnector executing sequential query with {buckets} buckets.")
+        
+        self.cursor.execute(f'SELECT MIN("{field}"), MAX("{field}") FROM data')
+        min_value, max_value = self.cursor.fetchone()
+        
+        if min_value is None or max_value is None:
+            logging.warning(f"No data found for field '{field}'.")
+            return [[] for _ in range(buckets)]
+        
+        is_date_field = False
+        if isinstance(min_value, str) and len(min_value) >= 10:
+            try:
+                datetime.strptime(min_value[:10], '%Y-%m-%d')
+                is_date_field = True
+            except ValueError:
+                pass
+        
+        results = []
+        
+        if is_date_field:
+            start_date = datetime.strptime(min_value[:10], '%Y-%m-%d')
+            end_date = datetime.strptime(max_value[:10], '%Y-%m-%d')
+            
+            delta = (end_date - start_date).days
+            if delta == 0:  
+                interval_days = 1
+            else:
+                interval_days = delta / buckets
+            
+            for i in range(buckets):
+                bucket_start_date = start_date + timedelta(days=int(interval_days * i))
+                bucket_start_str = bucket_start_date.strftime('%Y-%m-%d')
+                
+                if i < buckets - 1:
+                    bucket_end_date = start_date + timedelta(days=int(interval_days * (i + 1)))
+                    bucket_end_str = bucket_end_date.strftime('%Y-%m-%d')
+                    self.cursor.execute(
+                        f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" < ?',
+                        (bucket_start_str, bucket_end_str)
+                    )
+                else:
+                    self.cursor.execute(
+                        f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" <= ?',
+                        (bucket_start_str, max_value)
+                    )
+                
+                bucket_ids = [row[0] for row in self.cursor.fetchall()]
+                results.append(bucket_ids)
+        else:
+            interval_size = (max_value - min_value) / buckets
+            
+            for i in range(buckets):
+                start_value = min_value + (interval_size * i)
+                
+                if i < buckets - 1:
+                    end_value = min_value + (interval_size * (i + 1))
+                    self.cursor.execute(
+                        f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" < ?',
+                        (start_value, end_value)
+                    )
+                else:
+                    self.cursor.execute(
+                        f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" <= ?',
+                        (start_value, max_value)
+                    )
+                
+                bucket_ids = [row[0] for row in self.cursor.fetchall()]
+                results.append(bucket_ids)
+        
+        logging.info(f"DatabaseConnector returning {buckets} buckets from sequential query.")
+        return results
 
 class DatabaseCreator:
     """
