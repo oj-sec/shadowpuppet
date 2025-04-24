@@ -87,6 +87,21 @@ async def shutdown():
     threading.Timer(0.5, kill_process).start()
     return {"message": "Server shutting down"}
 
+@app.post("/api/visualise/categorical-query")
+async def categorical_query(
+    request: Request,
+):
+    """
+    Route to return buckets based on on unique values of 
+    a field up to a maximum number of buckets.
+    """
+    if not clients["database_connector"]:
+        raise HTTPException(status_code=400, detail="No database loaded.")
+    data = await request.json()
+    return clients["database_connector"].categorical_query(
+        data["field"],
+        data["buckets"],
+    )
 
 @app.post("/api/visualise/sequentual-query")
 async def sequential_query(

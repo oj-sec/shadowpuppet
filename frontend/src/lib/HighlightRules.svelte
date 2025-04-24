@@ -85,7 +85,27 @@
             idTicker++;
             modalClose();
         } else if (group === "Category") {
-            return;
+            const pointGroups = await buildCategorical(selectedField, maximumBuckets);
+            const colours = interpolateColours(startColour, endColour, maximumBuckets);
+            const colourDict = {};
+            for (let i = 0; i < pointGroups.length; i++) {
+                colourDict[colours[i]] = pointGroups[i];
+            }
+            const rule = {
+                ruleId: idTicker,
+                field: selectedField,
+                operator: selectedOperator,
+                query: query,
+                colour: selectedColour,
+                pointGroups: colourDict,
+                type: "categorical",
+                startColour: startColour,
+                endColour: endColour,
+            };
+            highlightRules.push(rule);
+            highlightRules = [...highlightRules];
+            idTicker++;
+            modalClose();
         }
     }
     
@@ -107,6 +127,21 @@
     
     async function buildSequential(field: string, buckets: number | null): Promise<number[]> {
         const request = await fetch("/api/visualise/sequentual-query", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                field: field,
+                buckets: buckets,
+            }),
+        })
+        const response = await request.json();
+        return response;
+    }
+    
+    async function buildCategorical(field: string, buckets: number | null): Promise<number[]> {
+        const request = await fetch("/api/visualise/categorical-query", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -188,7 +223,7 @@ backdropClasses="backdrop-blur-sm"
         {#snippet list()}
         <Tabs.Control value="Query">Query</Tabs.Control>
         <Tabs.Control value="Sequential">Sequential</Tabs.Control>
-        <Tabs.Control value="Category">Caregory</Tabs.Control>
+        <Tabs.Control value="Category">Category</Tabs.Control>
         {/snippet}
         {#snippet content()}
         <Tabs.Panel value="Query"> 
@@ -258,9 +293,9 @@ backdropClasses="backdrop-blur-sm"
         </Tabs.Panel>
         <Tabs.Panel value="Category"> 
             <div class="w-full text-center items-center">
-                <i class="text-sm text-gray-500 max-w-2/3">Highlight points using up to 100 unique values for a field</i>
+                <i class="text-sm text-gray-500 max-w-2/3">Highlight points using up to 100 unique values for a field, sorted by most represented</i>
             </div>
-            <div class="flex flex-row gap-4 mt-4">
+            <div class="flex flex-row gap-4 mt-4 items-center justify-center">
                 <div class="flex flex-col">
                     <label for="field" class="text-sm mb-1">Field</label>
                     <select id="field" class="select min-w-[150px]" bind:value={selectedField}>
@@ -271,34 +306,28 @@ backdropClasses="backdrop-blur-sm"
                 </div>
                 
                 <div class="flex flex-col">
-                    <label for="operator" class="text-sm mb-1">Operator</label>
-                    <select id="operator" class="select min-w-[150px]" bind:value={selectedOperator}>
-                        <option value="contains">contains</option>
-                        <option value="equals">equals</option>
-                        <option value="not contains">does not contain</option>
-                        <option value="not equals">does not equal</option>
-                    </select>
-                </div>
-                
-                <div class="flex flex-col flex-grow">
-                    <label for="query" class="text-sm mb-1">Query</label>
-                    <input type="text" id="query" class="input min-w-[150px] w-full" bind:value={query} />
+                    <label for="operator" class="text-sm mb-1">Buckets</label>
+                    <input type="number" step="1" min="2" max="100" class="input min-w-[150px]" bind:value={maximumBuckets} />
                 </div>
                 
                 <div class="flex flex-col">
-                    <label class="text-sm mb-1">Colour</label>
-                    <input class="input w-16" type="color" bind:value={selectedColour} />
+                    <label class="text-sm mb-1">Start colour</label>
+                    <input class="input w-16" type="color" bind:value={startColour} />
                 </div>
-            </div>
-        </Tabs.Panel>
-        {/snippet}
-    </Tabs>
-</article>
-<footer class="flex justify-end gap-4">
-    <button type="button" class="btn preset-tonal" onclick={modalClose}>Cancel</button>
-    <button disabled={!canConfrimModal} type="button" class="btn preset-filled" onclick={modalConfirm}>Confirm</button>
-</footer>
-{/snippet}
+                
+                <div class="flex flex-col">
+                    <label class="text-sm mb-1">End Colour</label>
+                    <input class="input w-16" type="color" bind:value={endColour} />
+                </div>
+            </Tabs.Panel>
+            {/snippet}
+        </Tabs>
+    </article>
+    <footer class="flex justify-end gap-4">
+        <button type="button" class="btn preset-tonal" onclick={modalClose}>Cancel</button>
+        <button disabled={!canConfrimModal} type="button" class="btn preset-filled" onclick={modalConfirm}>Confirm</button>
+    </footer>
+    {/snippet}
 </Modal>
 
 

@@ -266,6 +266,40 @@ class DatabaseConnector:
         logging.info(f"DatabaseConnector returning {buckets} buckets from sequential query.")
         return results
 
+    def categorical_query(self, field, buckets):
+        """
+        Method to return a list of lists of point ids based on unique 
+        values for a specified field. Returns buckets for the most frequent
+        values up to the specified bucket limit.
+        """
+        logging.info(f"DatabaseConnector executing categorical query with {buckets} buckets.")
+        if buckets > 100:
+            buckets = 100
+            logging.info("Bucket count capped at 100.")
+        
+        self.cursor.execute(f'SELECT "{field}", COUNT(*) as count FROM data GROUP BY "{field}" ORDER BY count DESC')
+        value_counts = self.cursor.fetchall()
+        
+        if not value_counts:
+            logging.warning(f"No data found for field '{field}'.")
+            return []
+        
+        top_values = value_counts[:buckets]
+        results = []
+        
+        for value, _ in top_values:
+            if value is None:
+                self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" IS NULL')
+            else:
+                self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" = ?', (value,))
+            
+            bucket_ids = [row[0] for row in self.cursor.fetchall()]
+            results.append(bucket_ids)
+        
+        logging.info(f"DatabaseConnector returning {len(results)} buckets from categorical query.")
+        return results
+
+
 class DatabaseCreator:
     """
     Class to create new sqlite3 database files from
