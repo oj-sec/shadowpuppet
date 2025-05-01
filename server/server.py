@@ -98,10 +98,13 @@ async def categorical_query(
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].categorical_query(
-        data["field"],
-        data["buckets"],
-    )
+    try:
+        return clients["database_connector"].categorical_query(
+            data["field"],
+            data["buckets"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
 @app.post("/api/visualise/sequentual-query")
 async def sequential_query(
@@ -114,10 +117,13 @@ async def sequential_query(
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].sequential_query(
-        data["field"],
-        data["buckets"],
-    )
+    try:
+        return clients["database_connector"].sequential_query(
+            data["field"],
+            data["buckets"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
 @app.post("/api/visualise/simple-query")
 async def query(
@@ -130,11 +136,14 @@ async def query(
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].simple_query(
-        data["field"],
-        data["query"],
-        data["operator"],
-    )
+    try:
+        return clients["database_connector"].simple_query(
+            data["field"],
+            data["query"],
+            data["operator"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
 
 @app.post("/api/visualise/get-point")
