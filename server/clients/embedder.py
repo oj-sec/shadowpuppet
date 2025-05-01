@@ -23,7 +23,7 @@ class Embedder:
         embedding_field: str,
         overflow_strategy: str = "truncate",
         embedding_instruction: str = "",
-        max_batch_size: int = 1,
+        max_batch_size: int = 50,
     ):
         logging.info("Embedder initialising.")
         self.model_string = model
