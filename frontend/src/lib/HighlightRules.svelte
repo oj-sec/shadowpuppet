@@ -434,7 +434,7 @@
                             </div>
 
                             <div class="flex flex-col">
-                                <label class="text-sm mb-1">End Colour</label>
+                                <label class="text-sm mb-1">End olour</label>
                                 <input
                                     class="input w-16"
                                     type="color"
