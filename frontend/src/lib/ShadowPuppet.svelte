@@ -2,6 +2,7 @@
     
     let {
         data,
+        labels = null,
     } = $props();
     
     import { Graph } from "@cosmograph/cosmos";
@@ -13,18 +14,22 @@
     import { Lock, TextCursor } from "@lucide/svelte";
     import { CircleX } from "@lucide/svelte";
     import HighlightRules from "$lib/HighlightRules.svelte";
+    import { CosmosLabels } from "$lib/CosmosLabels.ts";
     
     let graphReady = $state(false);
     let initialData = $state({});
     let points: number[] = $state([]);
     let focusPoint: number = $state(-1);
     let graph: Graph;
+    let cosmosLabels: CosmosLabels;
+    let pointIndexToLabel: Map<number, string>;
     let pointData = $state({});
     let pointDataLoading = $state(false);
     let toolbarTabGroup = $state('Data');
     let lockedField = $state('');
     let samplePoint = $state({});
     let labelField = $state('');
+    let resizeObserver: ResizeObserver | undefined;
     
     function handleClick(pointIndex: number | undefined, pointPosition: [number, number], event: MouseEvent | undefined) {
         if (pointIndex) {
@@ -44,32 +49,35 @@
         graph.setFocusedPointByIndex(pointIndex);
     }
     
+    
     function initialiseGraph() {
         points = Object.values(initialData).flat();
-        if (browser) {
-            if (graph) {
-                graph.destroy();
-            }
-            const div = document.getElementById("graph");
-            const config = {
-                disableSimulation: true,
-                pointSize: 4,
-                pointSizeScale: 0.5,
-                fitViewPadding: 0.3,
-                renderHoveredPointRing: true,
-                hoveredPointRingColor: "white",
-                disableAttribution: true,
-                showFPSMonitor: false,
-                pointColor: "#32009f",
-                onClick: (pointIndex, pointPosition, event) => {
-                    handleClick(pointIndex, pointPosition, event);
-                }
-            };
-            
-            graph = new Graph(div, config);
-            graph.setPointPositions(points);
-            graph.render();
-            console.log(graph);
+        
+        if (!browser) return;
+        if (graph) graph.destroy();
+        
+        const div = document.getElementById("graph");
+        if (!div) return;
+        
+        const config = {
+            disableSimulation: true,
+            pointSize: 2,
+            pointSizeScale: 1,
+            fitViewPadding: 0.3,
+            renderHoveredPointRing: true,
+            hoveredPointRingColor: "white",
+            disableAttribution: true,
+            showFPSMonitor: false,
+            pointColor: "#32009f",
+            onClick: (pointIndex, pointPosition, event) => handleClick(pointIndex, pointPosition, event),
+        };
+        
+        graph = new Graph(div, config);
+        graph.setPointPositions(points);
+        graph.render();
+        
+        if (labelField && samplePoint[labelField]) {
+            setupLabels(div);
         }
     }
     
@@ -81,7 +89,6 @@
         graphReady = true;
     });
     
-    // Point data viewer
     async function getPointData(pointIndex: number) {
         pointDataLoading = true;
         pointData = {};
@@ -101,12 +108,10 @@
         return pointData;
     }
     
-    // Fit view
     function fitView (): void {
         graph.fitView()
     }
     
-    // Zoom to point
     function zoomToPoint(): void {
         if (focusPoint === -1) {
             return;
@@ -114,7 +119,6 @@
         graph.zoomToPointByIndex(focusPoint, 700, 20, true);
     }
     
-    // Colour mapper 
     function colourMapper(hex: string): Float32Array {        
         const r = parseInt(hex.slice(1, 3), 16) / 255;
         const g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -123,7 +127,6 @@
         return new Float32Array([r, g, b, a]);
     }
     
-    // Set global point colour
     let globalPointColour = $state("#32009f");
     function setGlobalPointColour() {
         const numPoints = points.length / 2;
@@ -142,24 +145,22 @@
         if (!graphReady || !graph) return;
         console.log("Global point colour updated", globalPointColour);
         setGlobalPointColour();
-        
+        refreshLabels();
     });
     
-    // Set background colour
     let backgroundColour = $state('#222222');
     $effect(() => {
         if (!graphReady || !graph) return;
         console.log("Background colour updated", backgroundColour);
-        let currentConfig = { ...graph.config };
-        currentConfig.backgroundColor = backgroundColour;
-        console.log("Setting config to", currentConfig);
-        graph.setConfig(currentConfig);
+        
+        graph.setConfig({ backgroundColor: backgroundColour });
         graph.render();
+        
         console.log("Config set to", graph.config);
+        refreshLabels();
     });
     
-    // Set global point size
-    let globalPointSize = $state(4);
+    let globalPointSize = $state(2);
     $effect(() => {
         if (!graphReady || !graph) return;
         
@@ -173,9 +174,9 @@
         }
         graph.setPointSizes(globalPointSizeArray);
         graph.render();
+        refreshLabels();
     });
     
-    // Function to set point colour by indexes
     function setPointColourByIndexes(indexes: number[], colour: string): void {
         const currentColourArray = graph.points.data.pointColors;
         const colourArray = colourMapper(colour);
@@ -193,7 +194,6 @@
         graph.render();
     }
     
-    // Highlight rules functionality
     let highlightRules = $state([]);
     function updateColours() {
         setGlobalPointColour();
@@ -205,7 +205,6 @@
                 const adjustedPoints = points.map((point) => point - 1);
                 setPointColourByIndexes(adjustedPoints, colour);
             } else if (rule.pointGroups) {
-                // pointGroups is a dict of #HEXCOLOUR : [ids]
                 const pointGroups = rule.pointGroups;
                 for (const [colour, points] of Object.entries(pointGroups)) {
                     const adjustedPoints = points.map((point) => point - 1);
@@ -218,7 +217,153 @@
         if (!graphReady || !graph) return;
         console.log("Highlight rules updated", highlightRules);
         updateColours();
+        refreshLabels();
     });
+    
+    
+    function setupLabels(div: HTMLDivElement) {
+        const canvas = div.querySelector("canvas") as HTMLCanvasElement;
+        if (!canvas) return;
+        
+        const existingContainer = div.querySelector(".cosmos-labels-container");
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+        
+        const canvasParent = canvas.parentElement!;
+        if (getComputedStyle(canvasParent).position === "static") {
+            canvasParent.style.position = "relative";
+        }
+        
+        const labelsDiv = document.createElement("div");
+        labelsDiv.className = "cosmos-labels-container";
+        labelsDiv.style.position = "absolute";
+        labelsDiv.style.top = "0";
+        labelsDiv.style.left = "0";
+        labelsDiv.style.width = `${canvas.clientWidth}px`;
+        labelsDiv.style.height = `${canvas.clientHeight}px`;
+        labelsDiv.style.pointerEvents = "none";
+        canvasParent.appendChild(labelsDiv);
+        
+        cosmosLabels = new CosmosLabels(labelsDiv, pointIndexToLabel);        
+        const labelIndices = Array.from(pointIndexToLabel.keys());
+        graph.trackPointPositionsByIndices(labelIndices);
+        
+        graph.setConfig({
+            ...graph.config,
+            onZoom: () => {
+                if (cosmosLabels && graph) {
+                    cosmosLabels.update(graph);
+                }
+            },
+        });
+        
+        resizeObserver = new ResizeObserver(() => {
+            labelsDiv.style.width = `${canvas.clientWidth}px`;
+            labelsDiv.style.height = `${canvas.clientHeight}px`;
+            if (cosmosLabels) {
+                cosmosLabels.update(graph);
+            }
+        });
+        resizeObserver.observe(canvas);
+        
+        cosmosLabels.update(graph);
+    }
+    
+    async function fetchColumnValues(columnName: string) {
+        if (!columnName) return;
+        
+        try {
+            const response = await fetch("/api/visualise/get-column-values", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ column: columnName }),
+            });
+            
+            if (!response.ok) {
+                console.error("Failed to fetch column values:", response.statusText);
+                return;
+            }
+            
+            const data: Record<string, string> = await response.json();
+            
+            pointIndexToLabel = new Map();
+            Object.entries(data).forEach(([id, value]) => {
+                pointIndexToLabel.set(Number(id), String(value));
+            });
+            
+            if (graph && cosmosLabels) {
+                cosmosLabels.pointIndexToLabel = pointIndexToLabel;
+                cosmosLabels.update(graph);
+            }
+        } catch (err) {
+            console.error("Error fetching column values:", err);
+        }
+    }
+    
+    function clearLabels() {
+        if (graph && pointIndexToLabel && pointIndexToLabel.size > 0) {
+            const labelIndices = Array.from(pointIndexToLabel.keys());
+            if (graph.untrackPointPositionsByIndices) {
+                graph.untrackPointPositionsByIndices(labelIndices);
+            }
+        }
+        
+        if (resizeObserver) {
+            resizeObserver.disconnect();
+            resizeObserver = undefined;
+        }
+        
+        if (cosmosLabels) {
+            cosmosLabels.destroy();
+            cosmosLabels = undefined;
+        }
+        
+        const div = document.getElementById("graph");
+        if (div) {
+            const old = div.querySelector(".cosmos-labels-container");
+            if (old) {
+                old.remove();
+            }
+        }
+        
+        pointIndexToLabel = undefined;
+    }
+    
+    function refreshLabels() {
+        if (cosmosLabels && pointIndexToLabel && pointIndexToLabel.size > 0) {
+            setTimeout(() => {
+                const div = document.getElementById("graph");
+                if (div && pointIndexToLabel && pointIndexToLabel.size > 0) {
+                    const savedLabelData = new Map(pointIndexToLabel);
+                    clearLabels();
+                    pointIndexToLabel = savedLabelData;
+                    setupLabels(div);
+                }
+            }, 50);
+        }
+    }
+    
+    $effect(() => {
+        if (!graphReady || !graph) return;
+        
+        const div = document.getElementById("graph");
+        if (!div) return;
+        
+        if (!labelField) {
+            clearLabels();
+            return;
+        }
+        
+        clearLabels();
+        
+        fetchColumnValues(labelField).then(() => {
+            if (pointIndexToLabel && pointIndexToLabel.size > 0) {
+                setupLabels(div);
+            }
+        });
+    });
+    
     
 </script>
 
@@ -347,5 +492,3 @@
             </div>
         </div>
     </div>
-    
-    
