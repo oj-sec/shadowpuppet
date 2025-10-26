@@ -10,10 +10,11 @@
     import { Tabs } from '@skeletonlabs/skeleton-svelte';
     import CodeBlock from "$lib/CodeBlock.svelte";
     import { ProgressRing } from "@skeletonlabs/skeleton-svelte";
-    import { Lock } from "@lucide/svelte";
+    import { Lock, TextCursor } from "@lucide/svelte";
     import { CircleX } from "@lucide/svelte";
     import HighlightRules from "$lib/HighlightRules.svelte";
     
+    let graphReady = $state(false);
     let initialData = $state({});
     let points: number[] = $state([]);
     let focusPoint: number = $state(-1);
@@ -22,6 +23,8 @@
     let pointDataLoading = $state(false);
     let toolbarTabGroup = $state('Data');
     let lockedField = $state('');
+    let samplePoint = $state({});
+    let labelField = $state('');
     
     function handleClick(pointIndex: number | undefined, pointPosition: [number, number], event: MouseEvent | undefined) {
         if (pointIndex) {
@@ -70,9 +73,12 @@
         }
     }
     
-    onMount(() => {
+    onMount(async () => {
         initialData = data;
+        samplePoint = await getPointData(0);
+        pointData = {};
         initialiseGraph();
+        graphReady = true;
     });
     
     // Point data viewer
@@ -92,6 +98,7 @@
         pointData = response;
         pointData = pointData;
         pointDataLoading = false;
+        return pointData;
     }
     
     // Fit view
@@ -132,13 +139,16 @@
         graph.render();
     }
     $effect(() => {
+        if (!graphReady || !graph) return;
         console.log("Global point colour updated", globalPointColour);
         setGlobalPointColour();
+        
     });
     
     // Set background colour
     let backgroundColour = $state('#222222');
     $effect(() => {
+        if (!graphReady || !graph) return;
         console.log("Background colour updated", backgroundColour);
         let currentConfig = { ...graph.config };
         currentConfig.backgroundColor = backgroundColour;
@@ -151,6 +161,8 @@
     // Set global point size
     let globalPointSize = $state(4);
     $effect(() => {
+        if (!graphReady || !graph) return;
+        
         if (globalPointSize < 1 || globalPointSize % 1 !== 0) {
             return
         }
@@ -203,6 +215,7 @@
         }
     }
     $effect(() => {
+        if (!graphReady || !graph) return;
         console.log("Highlight rules updated", highlightRules);
         updateColours();
     });
@@ -264,6 +277,22 @@
                             <button type="button" disabled={focusPoint === -1 ? true : false} class="btn preset-tonal hover:preset-filled" onclick={zoomToPoint}>
                                 Zoom to point
                             </button>
+                        </div>
+                        <div class="input-group grid-cols-[auto_1fr_auto] my-2">                            
+                            {#if labelField}
+                            <div class="ig-cell preset-tonal" onclick={() => {labelField = ''}}>
+                                <CircleX size={16}/>
+                            </div>
+                            {:else}
+                            <div class="ig-cell preset-tonal">
+                                <TextCursor size={16}/>
+                            </div>
+                            {/if}
+                            <select class="ig-select" bind:value={labelField}>
+                                {#each Object.keys(samplePoint) as key}
+                                <option value={key}>{key}</option>
+                                {/each}
+                            </select>
                         </div>
                         <div class="w-full">
                             <div class="m-2 flex justify-center">
