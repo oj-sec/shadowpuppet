@@ -87,12 +87,13 @@ async def shutdown():
     threading.Timer(0.5, kill_process).start()
     return {"message": "Server shutting down"}
 
+
 @app.post("/api/visualise/categorical-query")
 async def categorical_query(
     request: Request,
 ):
     """
-    Route to return buckets based on on unique values of 
+    Route to return buckets based on on unique values of
     a field up to a maximum number of buckets.
     """
     if not clients["database_connector"]:
@@ -105,6 +106,7 @@ async def categorical_query(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
+
 
 @app.post("/api/visualise/sequentual-query")
 async def sequential_query(
@@ -124,6 +126,7 @@ async def sequential_query(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
+
 
 @app.post("/api/visualise/simple-query")
 async def query(
@@ -153,6 +156,16 @@ async def get_point(request: Request):
     """
     data = await request.json()
     return clients["database_connector"].get_data_by_id(data["id"])
+
+
+@app.post("/api/visualise/get-column-values")
+async def get_column_values(request: Request):
+    """
+    Route to get all values of a specified column, keyed by _id.
+    Expects JSON payload: { "column": "column_name" }
+    """
+    data = await request.json()
+    return clients["database_connector"].get_column_values_by_id(data["column"])
 
 
 @app.get("/api/visualise/get-coordinates")

@@ -194,110 +194,141 @@ class DatabaseConnector:
         Works with both numeric fields and ISO-formatted date strings.
         """
         from datetime import timedelta
-        logging.info(f"DatabaseConnector executing sequential query with {buckets} buckets.")
-        
+
+        logging.info(
+            f"DatabaseConnector executing sequential query with {buckets} buckets."
+        )
+
         self.cursor.execute(f'SELECT MIN("{field}"), MAX("{field}") FROM data')
         min_value, max_value = self.cursor.fetchone()
-        
+
         if min_value is None or max_value is None:
             logging.warning(f"No data found for field '{field}'.")
             return [[] for _ in range(buckets)]
-        
+
         is_date_field = False
         if isinstance(min_value, str) and len(min_value) >= 10:
             try:
-                datetime.strptime(min_value[:10], '%Y-%m-%d')
+                datetime.strptime(min_value[:10], "%Y-%m-%d")
                 is_date_field = True
             except ValueError:
                 pass
-        
+
         results = []
-        
+
         if is_date_field:
-            start_date = datetime.strptime(min_value[:10], '%Y-%m-%d')
-            end_date = datetime.strptime(max_value[:10], '%Y-%m-%d')
-            
+            start_date = datetime.strptime(min_value[:10], "%Y-%m-%d")
+            end_date = datetime.strptime(max_value[:10], "%Y-%m-%d")
+
             delta = (end_date - start_date).days
-            if delta == 0:  
+            if delta == 0:
                 interval_days = 1
             else:
                 interval_days = delta / buckets
-            
+
             for i in range(buckets):
                 bucket_start_date = start_date + timedelta(days=int(interval_days * i))
-                bucket_start_str = bucket_start_date.strftime('%Y-%m-%d')
-                
+                bucket_start_str = bucket_start_date.strftime("%Y-%m-%d")
+
                 if i < buckets - 1:
-                    bucket_end_date = start_date + timedelta(days=int(interval_days * (i + 1)))
-                    bucket_end_str = bucket_end_date.strftime('%Y-%m-%d')
+                    bucket_end_date = start_date + timedelta(
+                        days=int(interval_days * (i + 1))
+                    )
+                    bucket_end_str = bucket_end_date.strftime("%Y-%m-%d")
                     self.cursor.execute(
                         f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" < ?',
-                        (bucket_start_str, bucket_end_str)
+                        (bucket_start_str, bucket_end_str),
                     )
                 else:
                     self.cursor.execute(
                         f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" <= ?',
-                        (bucket_start_str, max_value)
+                        (bucket_start_str, max_value),
                     )
-                
+
                 bucket_ids = [row[0] for row in self.cursor.fetchall()]
                 results.append(bucket_ids)
         else:
             interval_size = (max_value - min_value) / buckets
-            
+
             for i in range(buckets):
                 start_value = min_value + (interval_size * i)
-                
+
                 if i < buckets - 1:
                     end_value = min_value + (interval_size * (i + 1))
                     self.cursor.execute(
                         f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" < ?',
-                        (start_value, end_value)
+                        (start_value, end_value),
                     )
                 else:
                     self.cursor.execute(
                         f'SELECT _id FROM data WHERE "{field}" >= ? AND "{field}" <= ?',
-                        (start_value, max_value)
+                        (start_value, max_value),
                     )
-                
+
                 bucket_ids = [row[0] for row in self.cursor.fetchall()]
                 results.append(bucket_ids)
-        
-        logging.info(f"DatabaseConnector returning {buckets} buckets from sequential query.")
+
+        logging.info(
+            f"DatabaseConnector returning {buckets} buckets from sequential query."
+        )
         return results
 
     def categorical_query(self, field, buckets):
         """
-        Method to return a list of lists of point ids based on unique 
+        Method to return a list of lists of point ids based on unique
         values for a specified field. Returns buckets for the most frequent
         values up to the specified bucket limit.
         """
-        logging.info(f"DatabaseConnector executing categorical query with {buckets} buckets.")
+        logging.info(
+            f"DatabaseConnector executing categorical query with {buckets} buckets."
+        )
         if buckets > 100:
             buckets = 100
             logging.info("Bucket count capped at 100.")
-        
-        self.cursor.execute(f'SELECT "{field}", COUNT(*) as count FROM data GROUP BY "{field}" ORDER BY count DESC')
+
+        self.cursor.execute(
+            f'SELECT "{field}", COUNT(*) as count FROM data GROUP BY "{field}" ORDER BY count DESC'
+        )
         value_counts = self.cursor.fetchall()
-        
+
         if not value_counts:
             logging.warning(f"No data found for field '{field}'.")
             return []
-        
+
         top_values = value_counts[:buckets]
         results = []
-        
+
         for value, _ in top_values:
             if value is None:
                 self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" IS NULL')
             else:
-                self.cursor.execute(f'SELECT _id FROM data WHERE "{field}" = ?', (value,))
-            
+                self.cursor.execute(
+                    f'SELECT _id FROM data WHERE "{field}" = ?', (value,)
+                )
+
             bucket_ids = [row[0] for row in self.cursor.fetchall()]
             results.append(bucket_ids)
-        
-        logging.info(f"DatabaseConnector returning {len(results)} buckets from categorical query.")
+
+        logging.info(
+            f"DatabaseConnector returning {len(results)} buckets from categorical query."
+        )
         return results
+
+    def get_column_values_by_id(self, column_name):
+        """
+        Method to get all values of a given column, keyed by _id.
+        """
+        logging.info(f"DatabaseConnector getting values for column '{column_name}'.")
+        try:
+            self.cursor.execute(f'SELECT _id, "{column_name}" FROM data')
+        except sqlite3.OperationalError as e:
+            logging.error(f"Column '{column_name}' does not exist: {e}")
+            raise ValueError(f"Column '{column_name}' does not exist in table 'data'.")
+
+        data = self.cursor.fetchall()
+        result = {row[0]: row[1] for row in data}
+        logging.info(f"DatabaseConnector returning values for column '{column_name}'.")
+        return result
 
 
 class DatabaseCreator:

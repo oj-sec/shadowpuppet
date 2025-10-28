@@ -6,6 +6,7 @@
 
     let loaded = $state(false);
     let data: any = $state({});
+    let labels: any = $state({});
     
     onMount(async() => {
         const response = await fetch('/api/visualise/get-coordinates', {
