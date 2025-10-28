@@ -11,25 +11,45 @@
     import { Tabs } from '@skeletonlabs/skeleton-svelte';
     import CodeBlock from "$lib/CodeBlock.svelte";
     import { ProgressRing } from "@skeletonlabs/skeleton-svelte";
-    import { Lock, TextCursor } from "@lucide/svelte";
-    import { CircleX } from "@lucide/svelte";
+    import { Lock, TextCursor, CircleX } from "@lucide/svelte";
     import HighlightRules from "$lib/HighlightRules.svelte";
     import { CosmosLabels } from "$lib/CosmosLabels.ts";
+    import { 
+        hexToRGBA, 
+        createUniformColorArray, 
+        createUniformSizeArray,
+        applyColorToIndices 
+    } from "$lib/graphUtils.ts";
     
+    // ============= STATE: GRAPH =============
     let graphReady = $state(false);
     let initialData = $state({});
     let points: number[] = $state([]);
     let focusPoint: number = $state(-1);
     let graph: Graph;
+    
+    // ============= STATE: LABELS =============
     let cosmosLabels: CosmosLabels;
     let pointIndexToLabel: Map<number, string>;
-    let pointData = $state({});
-    let pointDataLoading = $state(false);
-    let toolbarTabGroup = $state('Data');
-    let lockedField = $state('');
-    let samplePoint = $state({});
     let labelField = $state('');
     let resizeObserver: ResizeObserver | undefined;
+    
+    // ============= STATE: POINT DATA =============
+    let pointData = $state({});
+    let pointDataLoading = $state(false);
+    let samplePoint = $state({});
+    
+    // ============= STATE: UI =============
+    let toolbarTabGroup = $state('Data');
+    let lockedField = $state('');
+    
+    // ============= STATE: APPEARANCE =============
+    let globalPointColour = $state("#32009f");
+    let backgroundColour = $state('#222222');
+    let globalPointSize = $state(2);
+    let highlightRules = $state([]);
+    
+    // ============= GRAPH FUNCTIONS =============
     
     function handleClick(pointIndex: number | undefined, pointPosition: [number, number], event: MouseEvent | undefined) {
         if (pointIndex) {
@@ -48,7 +68,6 @@
         focusPoint = pointIndex;
         graph.setFocusedPointByIndex(pointIndex);
     }
-    
     
     function initialiseGraph() {
         points = Object.values(initialData).flat();
@@ -81,13 +100,18 @@
         }
     }
     
-    onMount(async () => {
-        initialData = data;
-        samplePoint = await getPointData(0);
-        pointData = {};
-        initialiseGraph();
-        graphReady = true;
-    });
+    function fitView(): void {
+        graph.fitView()
+    }
+    
+    function zoomToPoint(): void {
+        if (focusPoint === -1) {
+            return;
+        }
+        graph.zoomToPointByIndex(focusPoint, 700, 20, true);
+    }
+    
+    // ============= POINT DATA FUNCTIONS =============
     
     async function getPointData(pointIndex: number) {
         pointDataLoading = true;
@@ -108,118 +132,41 @@
         return pointData;
     }
     
-    function fitView (): void {
-        graph.fitView()
-    }
+    // ============= COLOR FUNCTIONS =============
     
-    function zoomToPoint(): void {
-        if (focusPoint === -1) {
-            return;
-        }
-        graph.zoomToPointByIndex(focusPoint, 700, 20, true);
-    }
-    
-    function colourMapper(hex: string): Float32Array {        
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-        const a = hex.length === 9 ? parseInt(hex.slice(7, 9), 16) / 255 : 1.0;
-        return new Float32Array([r, g, b, a]);
-    }
-    
-    let globalPointColour = $state("#32009f");
     function setGlobalPointColour() {
         const numPoints = points.length / 2;
-        const globalPointColourArray = new Float32Array(numPoints * 4);
-        const colour = colourMapper(globalPointColour);
-        for (let i = 0; i < numPoints; i++) {
-            globalPointColourArray[i * 4] = colour[0];    
-            globalPointColourArray[i * 4 + 1] = colour[1]; 
-            globalPointColourArray[i * 4 + 2] = colour[2]; 
-            globalPointColourArray[i * 4 + 3] = colour[3]; 
-        }
-        graph.setPointColors(globalPointColourArray);
-        graph.render();
-    }
-    $effect(() => {
-        if (!graphReady || !graph) return;
-        console.log("Global point colour updated", globalPointColour);
-        setGlobalPointColour();
-        refreshLabels();
-    });
-    
-    let backgroundColour = $state('#222222');
-    $effect(() => {
-        if (!graphReady || !graph) return;
-        console.log("Background colour updated", backgroundColour);
-        
-        graph.setConfig({ backgroundColor: backgroundColour });
-        graph.render();
-        
-        console.log("Config set to", graph.config);
-        refreshLabels();
-    });
-    
-    let globalPointSize = $state(2);
-    $effect(() => {
-        if (!graphReady || !graph) return;
-        
-        if (globalPointSize < 1 || globalPointSize % 1 !== 0) {
-            return
-        }
-        const numPoints = points.length / 2;
-        const globalPointSizeArray = new Float32Array(numPoints);
-        for (let i = 0; i < numPoints; i++) {
-            globalPointSizeArray[i] = globalPointSize;
-        }
-        graph.setPointSizes(globalPointSizeArray);
-        graph.render();
-        refreshLabels();
-    });
-    
-    function setPointColourByIndexes(indexes: number[], colour: string): void {
-        const currentColourArray = graph.points.data.pointColors;
-        const colourArray = colourMapper(colour);
-        const newColourArray = currentColourArray.slice();
-        let ticker = 0
-        for (let i = 0; i < indexes.length; i++) {
-            const index = indexes[i] * 4;
-            ticker++;
-            newColourArray[index] = colourArray[0];
-            newColourArray[index + 1] = colourArray[1];
-            newColourArray[index + 2] = colourArray[2];
-            newColourArray[index + 3] = colourArray[3];
-        }
-        graph.setPointColors(newColourArray);
+        const color = hexToRGBA(globalPointColour);
+        const colorArray = createUniformColorArray(numPoints, color);
+        graph.setPointColors(colorArray);
         graph.render();
     }
     
-    let highlightRules = $state([]);
+    function setPointColourByIndexes(indexes: number[], colourHex: string): void {
+        const currentColors = graph.points.data.pointColors;
+        const color = hexToRGBA(colourHex);
+        const newColors = applyColorToIndices(currentColors, indexes, color);
+        graph.setPointColors(newColors);
+        graph.render();
+    }
+    
     function updateColours() {
         setGlobalPointColour();
         for (let i = highlightRules.length - 1; i >= 0; i--) {
             const rule = highlightRules[i];
             if (rule.points) {
-                const points = rule.points;
-                const colour = rule.colour;
-                const adjustedPoints = points.map((point) => point - 1);
-                setPointColourByIndexes(adjustedPoints, colour);
+                const adjustedPoints = rule.points.map((point) => point - 1);
+                setPointColourByIndexes(adjustedPoints, rule.colour);
             } else if (rule.pointGroups) {
-                const pointGroups = rule.pointGroups;
-                for (const [colour, points] of Object.entries(pointGroups)) {
+                for (const [colour, points] of Object.entries(rule.pointGroups)) {
                     const adjustedPoints = points.map((point) => point - 1);
                     setPointColourByIndexes(adjustedPoints, colour);
                 }
             }
         }
     }
-    $effect(() => {
-        if (!graphReady || !graph) return;
-        console.log("Highlight rules updated", highlightRules);
-        updateColours();
-        refreshLabels();
-    });
     
+    // ============= LABEL FUNCTIONS =============
     
     function setupLabels(div: HTMLDivElement) {
         const canvas = div.querySelector("canvas") as HTMLCanvasElement;
@@ -289,7 +236,7 @@
             
             pointIndexToLabel = new Map();
             Object.entries(data).forEach(([id, value]) => {
-                pointIndexToLabel.set(Number(id), String(value));
+                pointIndexToLabel.set(Number(id) - 1, String(value));
             });
             
             if (graph && cosmosLabels) {
@@ -344,6 +291,56 @@
         }
     }
     
+    // ============= LIFECYCLE =============
+    
+    onMount(async () => {
+        initialData = data;
+        samplePoint = await getPointData(0);
+        pointData = {};
+        initialiseGraph();
+        graphReady = true;
+    });
+    
+    // ============= EFFECTS =============
+    
+    $effect(() => {
+        if (!graphReady || !graph) return;
+        console.log("Global point colour updated", globalPointColour);
+        setGlobalPointColour();
+        refreshLabels();
+    });
+    
+    $effect(() => {
+        if (!graphReady || !graph) return;
+        console.log("Background colour updated", backgroundColour);
+        
+        graph.setConfig({ backgroundColor: backgroundColour });
+        graph.render();
+        
+        console.log("Config set to", graph.config);
+        refreshLabels();
+    });
+    
+    $effect(() => {
+        if (!graphReady || !graph) return;
+        
+        if (globalPointSize < 1 || globalPointSize % 1 !== 0) {
+            return
+        }
+        const numPoints = points.length / 2;
+        const sizeArray = createUniformSizeArray(numPoints, globalPointSize);
+        graph.setPointSizes(sizeArray);
+        graph.render();
+        refreshLabels();
+    });
+    
+    $effect(() => {
+        if (!graphReady || !graph) return;
+        console.log("Highlight rules updated", highlightRules);
+        updateColours();
+        refreshLabels();
+    });
+    
     $effect(() => {
         if (!graphReady || !graph) return;
         
@@ -363,7 +360,6 @@
             }
         });
     });
-    
     
 </script>
 
