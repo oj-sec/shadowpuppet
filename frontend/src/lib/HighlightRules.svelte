@@ -793,7 +793,7 @@
     </div>
 
     <label class="btn preset-tonal w-full cursor-pointer text-center">
-        Upload Rules
+        Load rule file
         <input
             type="file"
             accept="application/json"
@@ -808,7 +808,7 @@
             class="btn preset-tonal w-full"
             onclick={downloadRules}
         >
-            Download Rules
+            Save rule file
         </button>
     {/if}
 </div>
