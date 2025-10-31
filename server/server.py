@@ -108,7 +108,7 @@ async def categorical_query(
         raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
 
-@app.post("/api/visualise/sequentual-query")
+@app.post("/api/visualise/sequential-query")
 async def sequential_query(
     request: Request,
 ):

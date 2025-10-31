@@ -56,6 +56,7 @@
             const points = await queryForPointsMatching(
                 query,
                 selectedOperator,
+                selectedField,
             );
             if (points === null) {
                 queryLoading = false;
@@ -68,6 +69,7 @@
                 query: query,
                 colour: selectedColour,
                 points: points,
+                type: "query",
             };
             highlightRules.push(rule);
             highlightRules = [...highlightRules];
@@ -101,6 +103,7 @@
                 type: "sequential",
                 startColour: startColour,
                 endColour: endColour,
+                buckets: maximumBuckets,
             };
             highlightRules.push(rule);
             highlightRules = [...highlightRules];
@@ -134,6 +137,7 @@
                 type: "categorical",
                 startColour: startColour,
                 endColour: endColour,
+                buckets: maximumBuckets,
             };
             highlightRules.push(rule);
             highlightRules = [...highlightRules];
@@ -157,6 +161,7 @@
     async function queryForPointsMatching(
         query: string,
         operator: string,
+        field: string,
     ): Promise<number[] | null> {
         try {
             const request = await fetch("/api/visualise/simple-query", {
@@ -165,7 +170,7 @@
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    field: selectedField,
+                    field: field,
                     query: query,
                     operator: operator,
                 }),
@@ -192,7 +197,7 @@
         buckets: number | null,
     ): Promise<number[] | null> {
         try {
-            const request = await fetch("/api/visualise/sequentual-query", {
+            const request = await fetch("/api/visualise/sequential-query", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -252,6 +257,7 @@
     }
 
     function interpolateColours(startColour, endColour, steps) {
+        if (steps === 1) return [startColour];
         const startHSL = hexToHSL(startColour);
         const endHSL = hexToHSL(endColour);
 
@@ -296,6 +302,187 @@
     import Dnd from "$lib/Dnd.svelte";
     function onSaveBasicList(e) {
         highlightRules = e;
+    }
+
+    // Rule load and save functionality
+    function downloadRules() {
+        try {
+            const cleanRules = highlightRules.map((rule) => ({
+                ruleId: rule.ruleId,
+                field: rule.field,
+                operator: rule.operator,
+                query: rule.query,
+                colour: rule.colour,
+                type: rule.type,
+                startColour: rule.startColour ?? null,
+                endColour: rule.endColour ?? null,
+                buckets: rule.buckets ?? null,
+            }));
+
+            const blob = new Blob([JSON.stringify(cleanRules, null, 2)], {
+                type: "application/json",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "highlight-rules.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            toast.create({
+                title: "Error",
+                description: "Unable to download rules.",
+                type: "error",
+            });
+        }
+    }
+
+    async function uploadRules(event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        queryLoading = true;
+
+        try {
+            const text = await file.text();
+            const data: typeof highlightRules = JSON.parse(text);
+
+            if (!Array.isArray(data)) throw new Error("Invalid file format");
+
+            const rehydratedRules = [];
+            const skippedRules = [];
+
+            for (let i = 0; i < data.length; i++) {
+                const rule = data[i];
+
+                if (!columnOptions.includes(rule.field)) {
+                    console.warn(
+                        `Skipping rule ${rule.ruleId}: field "${rule.field}" does not exist`,
+                    );
+                    skippedRules.push(rule.field);
+                    continue;
+                }
+
+                let points: number[] | null = null;
+                let pointGroups: Record<string, number[]> | null = null;
+
+                if (rule.type === "sequential") {
+                    const pointGroupsArray = await buildSequential(
+                        rule.field,
+                        rule.buckets,
+                    );
+                    if (!pointGroupsArray)
+                        throw new Error(
+                            `Sequential query failed for ruleId ${rule.ruleId}`,
+                        );
+
+                    const colours = interpolateColours(
+                        rule.startColour,
+                        rule.endColour,
+                        rule.buckets,
+                    );
+                    const colourDict = {};
+                    for (let j = 0; j < pointGroupsArray.length; j++) {
+                        colourDict[colours[j]] = pointGroupsArray[j];
+                    }
+                    pointGroups = colourDict;
+                } else if (rule.type === "categorical") {
+                    const pointGroupsArray = await buildCategorical(
+                        rule.field,
+                        rule.buckets,
+                    );
+                    if (!pointGroupsArray)
+                        throw new Error(
+                            `Categorical query failed for ruleId ${rule.ruleId}`,
+                        );
+
+                    const colours = interpolateColours(
+                        rule.startColour,
+                        rule.endColour,
+                        rule.buckets,
+                    );
+                    const colourDict = {};
+                    for (let j = 0; j < pointGroupsArray.length; j++) {
+                        colourDict[colours[j]] = pointGroupsArray[j];
+                    }
+                    pointGroups = colourDict;
+                } else if (rule.type === "query") {
+                    points = await queryForPointsMatching(
+                        rule.query,
+                        rule.operator,
+                        rule.field,
+                    );
+                    if (points === null)
+                        throw new Error(
+                            `Query failed for ruleId ${rule.ruleId}`,
+                        );
+                }
+
+                rehydratedRules.push({
+                    ruleId:
+                        typeof rule.ruleId === "number"
+                            ? rule.ruleId
+                            : idTicker++,
+                    field: rule.field,
+                    operator: rule.operator,
+                    query: typeof rule.query === "string" ? rule.query : "",
+                    colour:
+                        typeof rule.colour === "string"
+                            ? rule.colour
+                            : "#000000",
+                    type: typeof rule.type === "string" ? rule.type : "query",
+                    startColour:
+                        typeof rule.startColour === "string"
+                            ? rule.startColour
+                            : null,
+                    endColour:
+                        typeof rule.endColour === "string"
+                            ? rule.endColour
+                            : null,
+                    buckets:
+                        typeof rule.buckets === "number" ? rule.buckets : null,
+                    points,
+                    pointGroups,
+                });
+            }
+
+            highlightRules = [...rehydratedRules];
+            idTicker = rehydratedRules.length;
+
+            if (rehydratedRules.length > 0 && skippedRules.length === 0) {
+                toast.create({
+                    title: "Rules imported",
+                    description: `${rehydratedRules.length} rules loaded and rehydrated.`,
+                    type: "success",
+                });
+            } else if (rehydratedRules.length > 0 && skippedRules.length > 0) {
+                toast.create({
+                    title: "Rules partially imported",
+                    description: `${rehydratedRules.length} rules loaded. ${skippedRules.length} skipped due to missing fields: ${[...new Set(skippedRules)].join(", ")}`,
+                    type: "warning",
+                    baseClasses: "bg-yellow-500 text-white",
+                });
+            } else {
+                toast.create({
+                    title: "No rules imported",
+                    description: `All rules skipped due to missing fields: ${[...new Set(skippedRules)].join(", ")}`,
+                    type: "error",
+                });
+            }
+        } catch (err) {
+            toast.create({
+                title: "Error",
+                description:
+                    "Failed to import rules: " + (err as Error).message,
+                type: "error",
+            });
+        } finally {
+            queryLoading = false;
+            (event.target as HTMLInputElement).value = "";
+        }
     }
 </script>
 
@@ -434,7 +621,7 @@
                             </div>
 
                             <div class="flex flex-col">
-                                <label class="text-sm mb-1">End olour</label>
+                                <label class="text-sm mb-1">End colour</label>
                                 <input
                                     class="input w-16"
                                     type="color"
@@ -597,11 +784,31 @@
         </Dnd>
     </div>
 </div>
-<div class="flex justify-center w-full px-2">
+<div class="flex flex-col w-full px-2 space-y-2 mt-2">
     <div
         onclick={addRule}
-        class="card card-hover w-full preset-filled-surface-100-900 p-4 flex justify-center items-center border-2 border-dashed border-gray-400 my-2"
+        class="card card-hover w-full preset-filled-surface-100-900 p-4 flex justify-center items-center border-2 border-dashed border-gray-400"
     >
         <i class="text-gray-500 text-2xl"><CirclePlus /></i>
     </div>
+
+    <label class="btn preset-tonal w-full cursor-pointer text-center">
+        Upload Rules
+        <input
+            type="file"
+            accept="application/json"
+            onchange={uploadRules}
+            class="hidden"
+        />
+    </label>
+
+    {#if highlightRules.length > 0}
+        <button
+            type="button"
+            class="btn preset-tonal w-full"
+            onclick={downloadRules}
+        >
+            Download Rules
+        </button>
+    {/if}
 </div>
