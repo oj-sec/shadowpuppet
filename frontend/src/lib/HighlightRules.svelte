@@ -1,5 +1,6 @@
 <script lang="ts">
-    let { highlightRules = $bindable([]) } = $props();
+    let { highlightRules = $bindable([]), columnOptions = $bindable([]) } =
+        $props();
 
     import { CirclePlus } from "@lucide/svelte";
     import { X } from "@lucide/svelte";
@@ -11,7 +12,6 @@
     import { getContext } from "svelte";
     import { type ToastContext } from "@skeletonlabs/skeleton-svelte";
 
-    let columnOptions: string[] = $state([]);
     let selectedField: string = $state("");
     let selectedOperator: string = $state("contains");
     let query: string = $state("");
@@ -24,13 +24,7 @@
     let queryLoading = $state(false);
     export const toast: ToastContext = getContext("toast");
 
-    onMount(async () => {
-        const response = await fetch("/api/database/columns");
-        const responseJson = await response.json();
-        responseJson.forEach((column: string) => {
-            columnOptions.push(column);
-        });
-    });
+    onMount(async () => {});
 
     let modalOpenState = $state(false);
     let canConfrimModal = $state(false);
