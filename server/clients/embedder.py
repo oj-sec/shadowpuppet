@@ -3,10 +3,13 @@ Module to handle embedding generation.
 """
 
 import io
+import json
 import logging
 import pickle
 import sys
 
+import faiss
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from clients.database_connector import DatabaseConnector
@@ -24,6 +27,8 @@ class Embedder:
         overflow_strategy: str = "truncate",
         embedding_instruction: str = "",
         max_batch_size: int = 50,
+        compute_near_neighbours: bool = True,
+        near_neighbour_count: int = 5,
     ):
         logging.info("Embedder initialising.")
         self.model_string = model
@@ -47,6 +52,8 @@ class Embedder:
         self.embedding_instruction = embedding_instruction
         self.log_buffer = io.StringIO()
         self.max_batch_size = max_batch_size
+        self.compute_near_neighbours = compute_near_neighbours
+        self.near_neighbour_count = near_neighbour_count
         logging.info("Embedder initialised.")
 
     def __embed(self, documents):
@@ -56,6 +63,37 @@ class Embedder:
         """
         embeddings = self.model.encode(documents)
         return embeddings
+
+    def __compute_nearest_neighbours(self, database_connector):
+        logging.info("Embedder computing nearest neighbours.")
+        
+        database_connector.create_nearest_neighbours_column()
+        embeddings_dict = database_connector.get_embeddings()
+        
+        ids = list(embeddings_dict.keys())
+        embeddings_list = [embeddings_dict[id_val] for id_val in ids]
+        embeddings_array = np.array(embeddings_list).astype('float32')
+        
+        dimension = embeddings_array.shape[1]
+        index = faiss.IndexFlatIP(dimension)
+        
+        faiss.normalize_L2(embeddings_array)
+        index.add(embeddings_array)
+        
+        k = self.near_neighbour_count + 1
+        distances, indices = index.search(embeddings_array, k)
+        
+        updates = []
+        for i, id_val in enumerate(ids):
+            neighbour_indices = indices[i][1:]
+            neighbour_ids = [ids[idx] for idx in neighbour_indices]
+            updates.append({
+                "_id": id_val,
+                "neighbours": json.dumps(neighbour_ids)
+            })
+        
+        database_connector.write_nearest_neighbours(updates)
+        logging.info("Embedder finished computing nearest neighbours.")
 
     def iterate_database(self, database_filename):
         """
@@ -83,6 +121,10 @@ class Embedder:
                 row[storage_field] = pickle.dumps(embeddings[i])
             database_connector.write_embedded_documents(rows, storage_field)
             logging.info("Embedder wrote enriched documents to database.")
+        
+        if self.compute_near_neighbours:
+            self.__compute_nearest_neighbours(database_connector)
+        
         logging.info("Embedder finished iterating over database.")
 
     def download_model(self):

@@ -141,6 +141,37 @@ class DatabaseConnector:
         logging.info("DatabaseConnector returning embeddings.")
         return embeddings_dict
 
+    def create_nearest_neighbours_column(self):
+        logging.info("DatabaseConnector creating field to store nearest neighbours.")
+        field_name = "_nearest_neighbours"
+        self.cursor.execute(f'ALTER TABLE data ADD COLUMN "{field_name}" TEXT')
+        self.conn.commit()
+        logging.info("DatabaseConnector created field to store nearest neighbours.")
+        return field_name
+
+    def write_nearest_neighbours(self, updates):
+        logging.info("DatabaseConnector writing nearest neighbours.")
+        for update in updates:
+            self.cursor.execute(
+                'UPDATE data SET "_nearest_neighbours" = ? WHERE _id = ?',
+                (update["neighbours"], update["_id"]),
+            )
+        self.conn.commit()
+        logging.info("DatabaseConnector wrote nearest neighbours.")
+
+    def get_completed_neighbour_count(self):
+        """
+        Method to get the number of completed near neighbours
+        in the database.
+        """
+        logging.info("DatabaseConnector getting completed neighbour count.")
+        self.cursor.execute(
+            f'SELECT COUNT(*) FROM data WHERE "_nearest_neighbours" IS NOT NULL'
+        )
+        completed_document_count = self.cursor.fetchone()[0]
+        logging.info("DatabaseConnector returning completed document count.")
+        return completed_document_count
+
     def get_data_by_id(self, id):
         """
         Method to get data by ID from the database,
