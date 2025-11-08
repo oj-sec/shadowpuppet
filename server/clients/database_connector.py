@@ -143,11 +143,9 @@ class DatabaseConnector:
 
     def create_nearest_neighbours_column(self):
         logging.info("DatabaseConnector creating field to store nearest neighbours.")
-        field_name = "_nearest_neighbours"
-        self.cursor.execute(f'ALTER TABLE data ADD COLUMN "{field_name}" TEXT')
+        self.cursor.execute(f'ALTER TABLE data ADD COLUMN "_nearest_neighbours" TEXT')
         self.conn.commit()
         logging.info("DatabaseConnector created field to store nearest neighbours.")
-        return field_name
 
     def write_nearest_neighbours(self, updates):
         logging.info("DatabaseConnector writing nearest neighbours.")
@@ -159,18 +157,27 @@ class DatabaseConnector:
         self.conn.commit()
         logging.info("DatabaseConnector wrote nearest neighbours.")
 
-    def get_completed_neighbour_count(self):
+    def is_nearest_neighbours_complete(self):
         """
-        Method to get the number of completed near neighbours
-        in the database.
+        Method to check if nearest neighbours computation
+        is complete for all documents.
         """
-        logging.info("DatabaseConnector getting completed neighbour count.")
+        logging.info("DatabaseConnector checking if nearest neighbours complete.")
+
+        columns = self.get_columns()
+        if "_nearest_neighbours" not in columns:
+            logging.info("DatabaseConnector nearest neighbours column does not exist.")
+            return False
+
         self.cursor.execute(
-            f'SELECT COUNT(*) FROM data WHERE "_nearest_neighbours" IS NOT NULL'
+            'SELECT COUNT(*) FROM data WHERE "_nearest_neighbours" IS NOT NULL'
         )
-        completed_document_count = self.cursor.fetchone()[0]
-        logging.info("DatabaseConnector returning completed document count.")
-        return completed_document_count
+        nn_count = self.cursor.fetchone()[0]
+        total_count = self.get_total_documents()
+
+        is_complete = nn_count == total_count
+        logging.info("DatabaseConnector nearest neighbours complete: %s", is_complete)
+        return is_complete
 
     def get_data_by_id(self, id):
         """

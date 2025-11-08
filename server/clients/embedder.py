@@ -66,32 +66,29 @@ class Embedder:
 
     def __compute_nearest_neighbours(self, database_connector):
         logging.info("Embedder computing nearest neighbours.")
-        
+
         database_connector.create_nearest_neighbours_column()
         embeddings_dict = database_connector.get_embeddings()
-        
+
         ids = list(embeddings_dict.keys())
         embeddings_list = [embeddings_dict[id_val] for id_val in ids]
-        embeddings_array = np.array(embeddings_list).astype('float32')
-        
+        embeddings_array = np.array(embeddings_list).astype("float32")
+
         dimension = embeddings_array.shape[1]
         index = faiss.IndexFlatIP(dimension)
-        
+
         faiss.normalize_L2(embeddings_array)
         index.add(embeddings_array)
-        
+
         k = self.near_neighbour_count + 1
         distances, indices = index.search(embeddings_array, k)
-        
+
         updates = []
         for i, id_val in enumerate(ids):
             neighbour_indices = indices[i][1:]
             neighbour_ids = [ids[idx] for idx in neighbour_indices]
-            updates.append({
-                "_id": id_val,
-                "neighbours": json.dumps(neighbour_ids)
-            })
-        
+            updates.append({"_id": id_val, "neighbours": json.dumps(neighbour_ids)})
+
         database_connector.write_nearest_neighbours(updates)
         logging.info("Embedder finished computing nearest neighbours.")
 
@@ -121,10 +118,10 @@ class Embedder:
                 row[storage_field] = pickle.dumps(embeddings[i])
             database_connector.write_embedded_documents(rows, storage_field)
             logging.info("Embedder wrote enriched documents to database.")
-        
+
         if self.compute_near_neighbours:
             self.__compute_nearest_neighbours(database_connector)
-        
+
         logging.info("Embedder finished iterating over database.")
 
     def download_model(self):

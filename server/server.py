@@ -204,6 +204,9 @@ async def check_progress():
         "completedDocuments": clients[
             "database_connector"
         ].get_completed_document_count(storage_field),
+        "nearNeighbourComplete": clients[
+            "database_connector"
+        ].is_nearest_neighbours_complete(),
     }
 
 
