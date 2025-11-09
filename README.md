@@ -6,6 +6,10 @@ Shadowpuppet is a GUI tool for visualising semantic scatter plots. Semantic scat
 
 Shadowpuppet facilitates graph creation and exploration by writing data and embeddings into a local sqlite database and executing queries to highlight points. Shadowpuppet uses local models and no data leaves your device. Shadowpuppet uses the GPU-accelerated [cosmos](https://github.com/cosmosgl/cosmos) library for visualisations and should handle point counts into the hundreds of thousands on most devices. 
 
+## Note on macOS use
+
+__PaCMAP currently contains a dependency (annoy) that calls macOS BLAS functions that result in a segmentation fault. Further information is available in [this issue](https://github.com/YingfanWang/PaCMAP/issues/94). Given that pyintaller cannot handle these workarounds, prebuilt macOS releases do not currently function.__
+
 ## Installation
 
 Shadowpuppet is available as Tauri binaries for Windows (x86 NSIS installer) and macOS (aarch64 .app bundle) under the releases section. Binaries contain the entire application in a single executable file for ease of use. The releases section also contains prebuilt  pyinstaller binaries for Windows (x86) and macOS (aarch64), which start a server on `http://localhost:8000` containing the UI. Note that the application server uses singleton clients and is not suitable to serve multiple clients or to be served remotely.
