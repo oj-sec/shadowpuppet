@@ -87,23 +87,28 @@ async def shutdown():
     threading.Timer(0.5, kill_process).start()
     return {"message": "Server shutting down"}
 
+
 @app.post("/api/visualise/categorical-query")
 async def categorical_query(
     request: Request,
 ):
     """
-    Route to return buckets based on on unique values of 
+    Route to return buckets based on on unique values of
     a field up to a maximum number of buckets.
     """
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].categorical_query(
-        data["field"],
-        data["buckets"],
-    )
+    try:
+        return clients["database_connector"].categorical_query(
+            data["field"],
+            data["buckets"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
-@app.post("/api/visualise/sequentual-query")
+
+@app.post("/api/visualise/sequential-query")
 async def sequential_query(
     request: Request,
 ):
@@ -114,10 +119,14 @@ async def sequential_query(
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].sequential_query(
-        data["field"],
-        data["buckets"],
-    )
+    try:
+        return clients["database_connector"].sequential_query(
+            data["field"],
+            data["buckets"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
+
 
 @app.post("/api/visualise/simple-query")
 async def query(
@@ -130,11 +139,14 @@ async def query(
     if not clients["database_connector"]:
         raise HTTPException(status_code=400, detail="No database loaded.")
     data = await request.json()
-    return clients["database_connector"].simple_query(
-        data["field"],
-        data["query"],
-        data["operator"],
-    )
+    try:
+        return clients["database_connector"].simple_query(
+            data["field"],
+            data["query"],
+            data["operator"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error completing query: {type(e).__name__}: {str(e)}")
 
 
 @app.post("/api/visualise/get-point")
@@ -144,6 +156,16 @@ async def get_point(request: Request):
     """
     data = await request.json()
     return clients["database_connector"].get_data_by_id(data["id"])
+
+
+@app.post("/api/visualise/get-column-values")
+async def get_column_values(request: Request):
+    """
+    Route to get all values of a specified column, keyed by _id.
+    Expects JSON payload: { "column": "column_name" }
+    """
+    data = await request.json()
+    return clients["database_connector"].get_column_values_by_id(data["column"])
 
 
 @app.get("/api/visualise/get-coordinates")
@@ -182,6 +204,9 @@ async def check_progress():
         "completedDocuments": clients[
             "database_connector"
         ].get_completed_document_count(storage_field),
+        "nearNeighbourComplete": clients[
+            "database_connector"
+        ].is_nearest_neighbours_complete(),
     }
 
 

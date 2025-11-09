@@ -56,6 +56,6 @@
 		shadowpuppet
 	</span>
 </AppBar>
-<ToastProvider>
+<ToastProvider zIndex="z-[2000]">
 	{@render children()}
 </ToastProvider>
