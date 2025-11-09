@@ -45,6 +45,9 @@
     let globalPointSize = $state(2);
     let highlightRules = $state([]);
 
+    // ============= STATE: LINKS =============
+    let currentLinks: Float32Array | null = $state(null);
+
     // ============= GRAPH FUNCTIONS =============
 
     function handleClick(
@@ -52,8 +55,10 @@
         pointPosition: [number, number],
         event: MouseEvent | undefined,
     ) {
-        if (pointIndex) {
-            setPointHilight(pointIndex);
+        if (pointIndex === undefined) return;
+        const wasFocused = focusPoint === pointIndex;
+        setPointHilight(pointIndex);
+        if (!wasFocused) {
             getPointData(pointIndex);
             toolbarTabGroup = "Data";
         }
@@ -63,6 +68,8 @@
         if (focusPoint === pointIndex) {
             focusPoint = -1;
             graph.setFocusedPointByIndex(undefined);
+            pointData = {};
+            clearLinks();
             return;
         }
         focusPoint = pointIndex;
@@ -85,9 +92,15 @@
             fitViewPadding: 0.3,
             renderHoveredPointRing: true,
             hoveredPointRingColor: "white",
+            focusedPointRingColor: "white",
             disableAttribution: true,
             showFPSMonitor: false,
             pointColor: "#32009f",
+            curvedLinks: true,
+            linkArrows: true,
+            linkVisibilityDistanceRange: [0, 150],
+            linkGreyoutOpacity: 1,
+            linkColor: "#d6d2d2",
             onClick: (pointIndex, pointPosition, event) =>
                 handleClick(pointIndex, pointPosition, event),
         };
@@ -95,6 +108,7 @@
         graph = new Graph(div, config);
         graph.setPointPositions(points);
         graph.render();
+        refreshLabels();
 
         if (labelField && columns.includes(labelField)) {
             setupLabels(div);
@@ -128,8 +142,10 @@
         });
         const response = await request.json();
         pointData = response;
-        pointData = pointData;
         pointDataLoading = false;
+
+        drawNearestNeighborLinks(pointIndex);
+
         return pointData;
     }
 
@@ -139,6 +155,49 @@
         responseJson.forEach((column: string) => {
             columns.push(column);
         });
+    }
+
+    // ============= LINK FUNCTIONS =============
+
+    function drawNearestNeighborLinks(pointIndex: number) {
+        if (!graph || !pointData._nearest_neighbours) {
+            clearLinks();
+            return;
+        }
+
+        try {
+            const neighbors = JSON.parse(pointData._nearest_neighbours);
+
+            if (!Array.isArray(neighbors) || neighbors.length === 0) {
+                clearLinks();
+                return;
+            }
+
+            const linksArray = new Float32Array(neighbors.length * 2);
+
+            neighbors.forEach((neighborId: number, index: number) => {
+                const neighborIndex = neighborId - 1;
+                linksArray[index * 2] = pointIndex;
+                linksArray[index * 2 + 1] = neighborIndex;
+            });
+
+            currentLinks = linksArray;
+            graph.setLinks(linksArray);
+            graph.render();
+            refreshLabels();
+        } catch (error) {
+            console.error("Error parsing nearest neighbors:", error);
+            clearLinks();
+        }
+    }
+
+    function clearLinks() {
+        if (graph && currentLinks) {
+            graph.setLinks(new Float32Array([]));
+            graph.render();
+            refreshLabels();
+            currentLinks = null;
+        }
     }
 
     // ============= COLOR FUNCTIONS =============
@@ -322,19 +381,14 @@
 
     $effect(() => {
         if (!graphReady || !graph) return;
-        console.log("Global point colour updated", globalPointColour);
         setGlobalPointColour();
         refreshLabels();
     });
 
     $effect(() => {
         if (!graphReady || !graph) return;
-        console.log("Background colour updated", backgroundColour);
-
         graph.setConfig({ backgroundColor: backgroundColour });
         graph.render();
-
-        console.log("Config set to", graph.config);
         refreshLabels();
     });
 
@@ -353,7 +407,6 @@
 
     $effect(() => {
         if (!graphReady || !graph) return;
-        console.log("Highlight rules updated", highlightRules);
         updateColours();
         refreshLabels();
     });
@@ -376,10 +429,6 @@
                 setupLabels(div);
             }
         });
-    });
-
-    $effect(() => {
-        console.log("columns", columns);
     });
 </script>
 
