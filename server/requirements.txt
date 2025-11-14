@@ -5,3 +5,4 @@ pacmap==0.8.0
 pandas==2.2.3
 pyinstaller==6.13.0
 python-multipart==0.0.20
+faiss-cpu==1.12.0
